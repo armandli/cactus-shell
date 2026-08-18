@@ -2,5 +2,5 @@
 
 | Skill Name | Uses | Issues |
 |---|---|---|
-| commit-push | 3 | 0 |
+| commit-push | 4 | 0 |
 

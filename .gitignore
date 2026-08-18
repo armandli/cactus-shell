@@ -67,3 +67,6 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# skill-stat's transient lock
+.claude/skill-stats.lock
