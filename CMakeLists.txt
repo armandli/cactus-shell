@@ -14,6 +14,20 @@ endif()
 
 option(CACTUS_BUILD_TESTS "Build unit tests" ON)
 
+include(FetchContent)
+
+FetchContent_Declare(
+  simdjson
+  GIT_REPOSITORY https://github.com/simdjson/simdjson.git
+  GIT_TAG        v4.6.7
+  SYSTEM
+  FIND_PACKAGE_ARGS NAMES simdjson
+)
+
+set(SIMDJSON_DEVELOPER_MODE OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(simdjson)
+
 add_library(cactus_warnings INTERFACE)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(cactus_warnings INTERFACE

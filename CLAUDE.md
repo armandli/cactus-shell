@@ -1,27 +1,50 @@
 # cactus-shell
 
-A Unix shell written in C++23. Currently scaffolding only — no shell logic implemented yet.
+A shell written in C++23 that takes natural-language English and runs the corresponding
+commands. Translation is done by the Needle model via the cactus inference engine.
 
 ## Commands
 
 ```bash
-cmake -S . -B build                              # configure
-cmake --build build -j4                          # build
-ctest --test-dir build --output-on-failure       # test
-./build/src/cactus                               # run
+cmake -S . -B build -DCACTUS_ROOT=/path/to/cactus   # configure
+cmake --build build -j4                              # build
+ctest --test-dir build --output-on-failure           # test
+./build/src/cactus                                   # run
 ```
 
-The first configure downloads GoogleTest via `FetchContent` and needs network access. If
-GoogleTest is later installed system-wide, CMake finds it instead (`FIND_PACKAGE_ARGS`).
+## Dependencies
+
+- **cactus engine** — required at link time, provides the C symbols in `needle_ffi.h`.
+  Build from https://github.com/cactus-compute/cactus and pass `-DCACTUS_ROOT`.
+  **Its kernels are compiled with `-march=armv8.2-a`, so it only builds on arm64.**
+  On x86_64 the configure step fails by design.
+- **simdjson** and **GoogleTest** — fetched automatically via `FetchContent` on the first
+  configure (needs network). Both prefer a system install if one exists.
+
+`needle_ffi.h` redeclares the handful of cactus C functions we call instead of including
+`<cactus_engine.h>`. That upstream header pulls in `cactus_graph.h`, which includes
+`<arm_neon.h>` unconditionally and declares its own C++ `namespace cactus` that collides
+with ours. Keep those declarations byte-compatible with upstream.
 
 ## Layout
 
 - `src/` — all source. `cactus_core` (static lib) holds every testable piece; `main.cpp`
   is a thin wrapper that only constructs `Shell` and calls `run()`. New modules go in
   `src/` and must be added to the `cactus_core` sources list in `src/CMakeLists.txt`.
+  - `json_util.{h,cpp}` — `JsonBuilder` writes JSON (separators handled automatically),
+    `JsonDoc::parse` reads it. Both report failure through `std::expected<T, JsonError>`.
+  - `needle.{h,cpp}` — `NeedleClient` loads a model, renders chat/tool JSON, and parses
+    the reply into `NeedleReply` (text plus `ToolCall`s).
 - `test/` — GoogleTest unit tests, one `*_test.cpp` per module, added to `cactus_tests`.
 
 Logic must live in `cactus_core`, not `main.cpp` — anything in `main.cpp` cannot be tested.
+
+`needle_test.cpp` holds integration tests that need real weights. They skip unless
+`CACTUS_NEEDLE_MODEL` points at a Needle weights directory:
+
+```bash
+CACTUS_NEEDLE_MODEL=/path/to/weights ctest --test-dir build --output-on-failure
+```
 
 ## Style
 
