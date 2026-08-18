@@ -19,9 +19,11 @@ if(NOT CACTUS_ENGINE_LIBRARY)
 endif()
 
 add_library(cactus_core STATIC
+  command.cpp
   json_util.cpp
   needle.cpp
   shell.cpp
+  tokenize.cpp
 )
 
 target_include_directories(cactus_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

@@ -5,8 +5,14 @@ Natural language is translated to tool calls by the
 [Needle](https://github.com/cactus-compute/needle) model, running locally through the
 [cactus](https://github.com/cactus-compute/cactus) inference engine.
 
-Status: early. The build, test, and run loop work end to end; the JSON layer and the
-Needle client are in place, but the shell itself does not execute commands yet.
+Status: early, but the loop is closed. You type English, the model answers with a
+`run_command` tool call, and the shell runs it.
+
+The command string never reaches `/bin/sh`. It is model-generated, so routing it through a
+shell would turn every mistranslation into a metacharacter hazard; instead the line is
+tokenized here and handed straight to `execvp`. That costs pipes, redirects, and globbing.
+Commands whose program is destructive (`rm`, `dd`, `mkfs`, `chmod`, `sudo <any of those>`,
+and friends) stop for a `y/N` confirmation first.
 
 ## Prerequisites
 
@@ -51,8 +57,18 @@ also skips the GoogleTest download.
 ## Run
 
 ```bash
-./build/src/cactus
+./build/src/cactus /path/to/weights     # or set CACTUS_NEEDLE_MODEL
 ```
+
+```
+cactus$ list the files here
+> ls
+CMakeLists.txt  LICENSE  README.md  src  test
+cactus$ cd /tmp
+cactus$ exit
+```
+
+`cd`, `exit`, and `quit` are handled in-process and never reach the model.
 
 ## Layout
 
@@ -62,6 +78,9 @@ also skips the GoogleTest download.
 | `src/json_util.h` | `JsonBuilder` to write JSON, `JsonDoc` to parse it, both over simdjson. |
 | `src/needle.h` | `NeedleClient` — feeds prompts to the model, returns parsed JSON replies. |
 | `src/needle_ffi.h` | The subset of cactus's C FFI that this project links against. |
+| `src/tokenize.h` | Quote-aware splitter that turns a command line into argv. |
+| `src/command.h` | Tool call → `Command`, the risky-program check, and `fork`/`execvp`. |
+| `src/shell.h` | The REPL, with `std::istream`/`std::ostream` injected for tests. |
 | `test/` | GoogleTest unit tests. |
 
 ## License

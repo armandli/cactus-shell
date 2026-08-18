@@ -9,7 +9,7 @@ commands. Translation is done by the Needle model via the cactus inference engin
 cmake -S . -B build -DCACTUS_ROOT=/path/to/cactus   # configure
 cmake --build build -j4                              # build
 ctest --test-dir build --output-on-failure           # test
-./build/src/cactus                                   # run
+./build/src/cactus /path/to/weights                  # run
 ```
 
 ## Dependencies
@@ -35,9 +35,18 @@ with ours. Keep those declarations byte-compatible with upstream.
     `JsonDoc::parse` reads it. Both report failure through `std::expected<T, JsonError>`.
   - `needle.{h,cpp}` — `NeedleClient` loads a model, renders chat/tool JSON, and parses
     the reply into `NeedleReply` (text plus `ToolCall`s).
+  - `tokenize.{h,cpp}` — quote-aware splitter, a pure function from a line to argv.
+  - `command.{h,cpp}` — `ToolCall` → `Command`, `is_risky`, and `fork`/`execvp`/`waitpid`.
+  - `shell.{h,cpp}` — the REPL. `run(std::istream&, std::ostream&)` is the seam that makes
+    the loop, the builtins, and the confirmation prompt testable without a model.
 - `test/` — GoogleTest unit tests, one `*_test.cpp` per module, added to `cactus_tests`.
 
 Logic must live in `cactus_core`, not `main.cpp` — anything in `main.cpp` cannot be tested.
+
+Model-generated command lines must never reach `/bin/sh`. They are split by `tokenize()`
+and handed to `execvp` as an explicit argv, so a mistranslation cannot become a
+metacharacter injection. Programs on the `is_risky` denylist need confirmation first, and
+that check looks through `sudo` at its arguments.
 
 `needle_test.cpp` holds integration tests that need real weights. They skip unless
 `CACTUS_NEEDLE_MODEL` points at a Needle weights directory:

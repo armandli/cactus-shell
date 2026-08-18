@@ -12,9 +12,11 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(cactus_tests
+  command_test.cpp
   json_util_test.cpp
   needle_test.cpp
   shell_test.cpp
+  tokenize_test.cpp
 )
 
 target_link_libraries(cactus_tests PRIVATE
