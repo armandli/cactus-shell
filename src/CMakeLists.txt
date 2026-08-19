@@ -3,8 +3,11 @@
 # https://github.com/cactus-compute/cactus and point CACTUS_ROOT at the result.
 # Note that its kernels are compiled with -march=armv8.2-a, so it only builds
 # on arm64 hosts.
+# "cactus_engine_core" is the engine's object code alone, without cactus_graph,
+# cactus_kernels, or the Apple frameworks/ObjC runtime it needs at link time, so
+# it must not be preferred over the self-contained "cactus_engine" artifact.
 find_library(CACTUS_ENGINE_LIBRARY
-  NAMES cactus_engine_shared cactus_engine_core cactus_engine cactus
+  NAMES cactus_engine_shared cactus_engine cactus_engine_core cactus
   HINTS ${CACTUS_ROOT} ENV CACTUS_ROOT
   PATH_SUFFIXES lib lib64 build cactus-engine/build
 )

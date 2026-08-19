@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include <simdjson.h>
-#include <simdjson/builder.h>
 
 namespace cactus {
 

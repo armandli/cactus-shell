@@ -12,10 +12,12 @@ namespace cactus {
 
 struct ShellConfig {
   std::string model_path;
-  std::string system_prompt =
-      "You are a shell. Translate the user's request into a single command "
-      "line for their machine and call run_command with it. Answer in words "
-      "only when no command could satisfy the request.";
+  // Needle answers tool-calling prompts far more reliably with no system
+  // message at all than with one: a system message pushes it off the
+  // distribution it was tuned on and it starts emitting garbled, duplicated
+  // tool calls. The run_command tool's own name and description carry
+  // enough context on their own.
+  std::string system_prompt;
   bool confirm_risky = true;
 
   static ShellConfig from_args(int argc, char** argv);

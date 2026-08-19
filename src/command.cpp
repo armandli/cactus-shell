@@ -143,8 +143,14 @@ std::expected<int, ExecError> execute(const Command& command) {
   // The child reports an execvp failure through this pipe; the write end is
   // close-on-exec, so a successful exec closes it and the parent reads nothing.
   int report[2];
-  if (::pipe2(report, O_CLOEXEC) != 0)
+  if (::pipe(report) != 0)
     return std::unexpected(ExecError::ForkFailed);
+  if (::fcntl(report[0], F_SETFD, FD_CLOEXEC) != 0 or
+      ::fcntl(report[1], F_SETFD, FD_CLOEXEC) != 0) {
+    ::close(report[0]);
+    ::close(report[1]);
+    return std::unexpected(ExecError::ForkFailed);
+  }
 
   pid_t child = ::fork();
   if (child < 0) {
