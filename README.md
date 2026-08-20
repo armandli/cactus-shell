@@ -57,7 +57,7 @@ also skips the GoogleTest download.
 ## Run
 
 ```bash
-./build/src/cactus /path/to/weights     # or set CACTUS_NEEDLE_MODEL
+./build/cactus /path/to/weights         # or set CACTUS_NEEDLE_MODEL
 ```
 
 ```

@@ -9,7 +9,7 @@ commands. Translation is done by the Needle model via the cactus inference engin
 cmake -S . -B build -DCACTUS_ROOT=/path/to/cactus   # configure
 cmake --build build -j4                              # build
 ctest --test-dir build --output-on-failure           # test
-./build/src/cactus /path/to/weights                  # run
+./build/cactus /path/to/weights                      # run
 ```
 
 ## Dependencies
