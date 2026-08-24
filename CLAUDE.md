@@ -74,6 +74,8 @@ Governed by the `format-cpp` and `refactor-cpp` skills in `.claude/skills/`. Run
 - `#ifndef FILENAME_H` header guards, never `#pragma once`.
 - `struct` over `class`; `protected` over `private` for member functions.
 - Functions `lower_snake_case`, types `UpperCamelCase`.
+- Encapsulated data members are `mUpperCamelCase` — `mModel`, `mPendingComma`. Public
+  fields of plain data structs keep bare `lower_snake_case` names.
 - `not`/`and`/`or` instead of `!`/`&&`/`||`.
 - Project headers use angle brackets — `#include <shell.h>`, not `"shell.h"`. This works
   because `src/` is a `PUBLIC` include directory on `cactus_core`.

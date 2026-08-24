@@ -45,7 +45,7 @@ struct JsonBuilder {
   JsonBuilder& field(std::string_view name, std::int64_t number);
   JsonBuilder& field(std::string_view name, double number);
 
-  bool balanced() const { return depth_ == 0; }
+  bool balanced() const { return mDepth == 0; }
 
   std::expected<std::string, JsonError> str() const;
   void clear();
@@ -53,9 +53,9 @@ struct JsonBuilder {
 protected:
   void punctuate();
 
-  simdjson::builder::string_builder builder_;
-  int depth_ = 0;
-  bool pending_comma_ = false;
+  simdjson::builder::string_builder mBuilder;
+  int mDepth = 0;
+  bool mPendingComma = false;
 };
 
 // Owns the parser and the padded copy of the source text that the returned
@@ -67,14 +67,14 @@ struct JsonDoc {
   JsonDoc(const JsonDoc&) = delete;
   JsonDoc& operator=(const JsonDoc&) = delete;
 
-  simdjson::dom::element root() const { return root_; }
+  simdjson::dom::element root() const { return mRoot; }
 
   static std::expected<JsonDoc, JsonError> parse(std::string_view text);
 
 protected:
-  std::unique_ptr<simdjson::dom::parser> parser_;
-  std::unique_ptr<simdjson::padded_string> source_;
-  simdjson::dom::element root_;
+  std::unique_ptr<simdjson::dom::parser> mParser;
+  std::unique_ptr<simdjson::padded_string> mSource;
+  simdjson::dom::element mRoot;
 };
 
 std::expected<std::string_view, JsonError> json_string(

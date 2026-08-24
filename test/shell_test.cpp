@@ -23,10 +23,10 @@ std::string feed(const std::string& input) {
 
 struct ShellDirectory : public ::testing::Test {
 protected:
-  void SetUp() override { start_ = std::filesystem::current_path(); }
-  void TearDown() override { std::filesystem::current_path(start_); }
+  void SetUp() override { mStart = std::filesystem::current_path(); }
+  void TearDown() override { std::filesystem::current_path(mStart); }
 
-  std::filesystem::path start_;
+  std::filesystem::path mStart;
 };
 
 TEST(ShellTest, writes_a_prompt) {
@@ -92,13 +92,13 @@ TEST_F(ShellDirectory, cd_accepts_a_quoted_directory) {
 TEST_F(ShellDirectory, a_bad_cd_reports_without_quitting) {
   std::string output = feed("cd /no/such/directory\nexit\n");
   EXPECT_NE(output.find("cd: cannot change to"), std::string::npos);
-  EXPECT_EQ(std::filesystem::current_path(), start_);
+  EXPECT_EQ(std::filesystem::current_path(), mStart);
 }
 
 TEST_F(ShellDirectory, cd_with_two_directories_is_rejected) {
   std::string output = feed("cd /tmp /usr\nexit\n");
   EXPECT_NE(output.find("exactly one directory"), std::string::npos);
-  EXPECT_EQ(std::filesystem::current_path(), start_);
+  EXPECT_EQ(std::filesystem::current_path(), mStart);
 }
 
 TEST_F(ShellDirectory, bare_cd_goes_home) {

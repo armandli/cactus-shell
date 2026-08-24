@@ -30,7 +30,7 @@ struct Shell {
   Shell() = default;
 
   explicit Shell(ShellConfig config)
-    : config_(std::move(config)), client_(config_.system_prompt) {}
+    : mConfig(std::move(config)), mClient(mConfig.system_prompt) {}
 
   int run();
   int run(std::istream& in, std::ostream& out);
@@ -64,9 +64,9 @@ protected:
 
   std::string prompt() const { return "cactus$ "; }
 
-  ShellConfig config_;
-  NeedleClient client_;
-  bool model_ready_ = false;
+  ShellConfig mConfig;
+  NeedleClient mClient;
+  bool mModelReady = false;
 };
 
 }  // namespace cactus

@@ -119,7 +119,7 @@ Shell::Action Shell::handle_request(
   NeedleOptions options;
   options.force_tools = true;
 
-  auto reply = client_.ask(line, tool_catalog_json(), options);
+  auto reply = mClient.ask(line, tool_catalog_json(), options);
   if (not reply.has_value()) {
     out << describe(reply.error()) << "\n";
     return Action::Continue;
@@ -150,7 +150,7 @@ bool Shell::run_call(
 
   out << "> " << render(*command) << "\n";
 
-  if (command->risky and config_.confirm_risky and
+  if (command->risky and mConfig.confirm_risky and
       not confirm(*command, in, out))
     return false;
 
@@ -203,22 +203,22 @@ bool Shell::confirm(
 }
 
 bool Shell::ensure_model(std::ostream& out) {
-  if (model_ready_)
+  if (mModelReady)
     return true;
 
-  if (config_.model_path.empty()) {
+  if (mConfig.model_path.empty()) {
     out << "no model: pass a Needle weights directory as the first argument "
            "or set CACTUS_NEEDLE_MODEL\n";
     return false;
   }
 
-  auto loaded = client_.load(config_.model_path);
+  auto loaded = mClient.load(mConfig.model_path);
   if (not loaded.has_value()) {
-    out << describe(loaded.error()) << ": " << config_.model_path << "\n";
+    out << describe(loaded.error()) << ": " << mConfig.model_path << "\n";
     return false;
   }
 
-  model_ready_ = true;
+  mModelReady = true;
   return true;
 }
 

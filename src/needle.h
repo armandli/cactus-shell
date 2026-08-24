@@ -58,7 +58,7 @@ struct NeedleClient {
 
   std::expected<void, NeedleError> load(const std::string& model_path);
   void unload();
-  bool loaded() const { return model_ != nullptr; }
+  bool loaded() const { return mModel != nullptr; }
 
   // tools_json is an OpenAI-style tool array, or empty for a plain completion.
   std::expected<NeedleReply, NeedleError> ask(
@@ -78,9 +78,9 @@ struct NeedleClient {
       std::string_view json);
 
 protected:
-  std::string system_prompt_;
-  cactus_model_t model_ = nullptr;
-  std::vector<char> buffer_ = std::vector<char>(16384);
+  std::string mSystemPrompt;
+  cactus_model_t mModel = nullptr;
+  std::vector<char> mBuffer = std::vector<char>(16384);
 };
 
 }  // namespace cactus

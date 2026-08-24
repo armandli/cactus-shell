@@ -26,86 +26,86 @@ std::string_view describe(JsonError error) {
 }
 
 void JsonBuilder::punctuate() {
-  if (pending_comma_) {
-    builder_.append_comma();
-    pending_comma_ = false;
+  if (mPendingComma) {
+    mBuilder.append_comma();
+    mPendingComma = false;
   }
 }
 
 JsonBuilder& JsonBuilder::begin_object() {
   punctuate();
-  builder_.start_object();
-  depth_ += 1;
+  mBuilder.start_object();
+  mDepth += 1;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::end_object() {
-  builder_.end_object();
-  depth_ -= 1;
-  pending_comma_ = true;
+  mBuilder.end_object();
+  mDepth -= 1;
+  mPendingComma = true;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::begin_array() {
   punctuate();
-  builder_.start_array();
-  depth_ += 1;
+  mBuilder.start_array();
+  mDepth += 1;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::end_array() {
-  builder_.end_array();
-  depth_ -= 1;
-  pending_comma_ = true;
+  mBuilder.end_array();
+  mDepth -= 1;
+  mPendingComma = true;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::key(std::string_view name) {
   punctuate();
-  builder_.escape_and_append_with_quotes(name);
-  builder_.append_colon();
+  mBuilder.escape_and_append_with_quotes(name);
+  mBuilder.append_colon();
   return *this;
 }
 
 JsonBuilder& JsonBuilder::value(std::string_view text) {
   punctuate();
-  builder_.escape_and_append_with_quotes(text);
-  pending_comma_ = true;
+  mBuilder.escape_and_append_with_quotes(text);
+  mPendingComma = true;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::value(bool flag) {
   punctuate();
-  builder_.append_raw(flag ? "true" : "false");
-  pending_comma_ = true;
+  mBuilder.append_raw(flag ? "true" : "false");
+  mPendingComma = true;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::value(std::int64_t number) {
   punctuate();
-  builder_.append_raw(std::to_string(number));
-  pending_comma_ = true;
+  mBuilder.append_raw(std::to_string(number));
+  mPendingComma = true;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::value(double number) {
   punctuate();
-  builder_.append(number);
-  pending_comma_ = true;
+  mBuilder.append(number);
+  mPendingComma = true;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::null_value() {
   punctuate();
-  builder_.append_null();
-  pending_comma_ = true;
+  mBuilder.append_null();
+  mPendingComma = true;
   return *this;
 }
 
 JsonBuilder& JsonBuilder::raw_value(std::string_view json) {
   punctuate();
-  builder_.append_raw(json);
-  pending_comma_ = true;
+  mBuilder.append_raw(json);
+  mPendingComma = true;
   return *this;
 }
 
@@ -130,28 +130,28 @@ std::expected<std::string, JsonError> JsonBuilder::str() const {
     return std::unexpected(JsonError::Unbalanced);
   }
   std::string_view rendered;
-  if (builder_.view().get(rendered)) {
+  if (mBuilder.view().get(rendered)) {
     return std::unexpected(JsonError::ParseFailed);
   }
   return std::string(rendered);
 }
 
 void JsonBuilder::clear() {
-  builder_.clear();
-  depth_ = 0;
-  pending_comma_ = false;
+  mBuilder.clear();
+  mDepth = 0;
+  mPendingComma = false;
 }
 
 std::expected<JsonDoc, JsonError> JsonDoc::parse(std::string_view text) {
   JsonDoc doc;
-  doc.parser_ = std::make_unique<sj::dom::parser>();
-  doc.source_ = std::make_unique<sj::padded_string>(text);
+  doc.mParser = std::make_unique<sj::dom::parser>();
+  doc.mSource = std::make_unique<sj::padded_string>(text);
 
-  auto parsed = doc.parser_->parse(*doc.source_);
+  auto parsed = doc.mParser->parse(*doc.mSource);
   if (parsed.error()) {
     return std::unexpected(JsonError::ParseFailed);
   }
-  doc.root_ = parsed.value();
+  doc.mRoot = parsed.value();
   return doc;
 }
 

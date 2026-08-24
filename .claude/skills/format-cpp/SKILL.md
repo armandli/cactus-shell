@@ -1,6 +1,6 @@
 ---
 name: format-cpp
-description: Formats C++ code according to 23 specific style rules covering whitespace, braces, preprocessor directives, namespaces, types, formatting, semantic transformations, and naming conventions. Use when user asks to "format my C++ code", "apply C++ style rules", "clean up this C++ file", or "run format-cpp on X". Run refactor-cpp before this skill. Do NOT use for explaining C++ code, debugging, or writing new C++ code from scratch.
+description: Formats C++ code according to 24 specific style rules covering whitespace, braces, preprocessor directives, namespaces, types, formatting, semantic transformations, and naming conventions. Use when user asks to "format my C++ code", "apply C++ style rules", "clean up this C++ file", or "run format-cpp on X". Run refactor-cpp before this skill. Do NOT use for explaining C++ code, debugging, or writing new C++ code from scratch.
 argument-hint: "[file or directory path]"
 ---
 
@@ -188,6 +188,20 @@ struct JsonParser {};                     // after
 ```
 
 Names at or under ~24 characters are left as-is even if they contain a word that has a common abbreviation.
+
+**H3 — Data member names: `m` prefix.** Non-public data members are prefixed with a lowercase `m` followed by `UpperCamelCase`. Convert a trailing underscore to this form:
+```cpp
+protected:
+  int pending_count_;   // before
+  int mPendingCount;    // after
+```
+Public data members of aggregate structs — those with no encapsulation, which callers read and write directly — keep bare `lower_snake_case` names and are NOT renamed:
+```cpp
+struct HttpRequest {
+  std::string url;      // stays: public field of a data carrier
+  int timeout_ms;       // stays
+};
+```
 
 ---
 

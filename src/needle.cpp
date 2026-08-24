@@ -36,7 +36,7 @@ std::string_view describe(NeedleError error) {
 }
 
 NeedleClient::NeedleClient(std::string system_prompt)
-  : system_prompt_(std::move(system_prompt)) {
+  : mSystemPrompt(std::move(system_prompt)) {
 }
 
 NeedleClient::~NeedleClient() {
@@ -44,19 +44,19 @@ NeedleClient::~NeedleClient() {
 }
 
 NeedleClient::NeedleClient(NeedleClient&& other) noexcept
-  : system_prompt_(std::move(other.system_prompt_)),
-    model_(other.model_),
-    buffer_(std::move(other.buffer_)) {
-  other.model_ = nullptr;
+  : mSystemPrompt(std::move(other.mSystemPrompt)),
+    mModel(other.mModel),
+    mBuffer(std::move(other.mBuffer)) {
+  other.mModel = nullptr;
 }
 
 NeedleClient& NeedleClient::operator=(NeedleClient&& other) noexcept {
   if (this != &other) {
     unload();
-    system_prompt_ = std::move(other.system_prompt_);
-    model_ = other.model_;
-    buffer_ = std::move(other.buffer_);
-    other.model_ = nullptr;
+    mSystemPrompt = std::move(other.mSystemPrompt);
+    mModel = other.mModel;
+    mBuffer = std::move(other.mBuffer);
+    other.mModel = nullptr;
   }
   return *this;
 }
@@ -65,33 +65,33 @@ std::expected<void, NeedleError> NeedleClient::load(
     const std::string& model_path)
 {
   unload();
-  model_ = cactus_init(model_path.c_str(), nullptr, false);
-  if (model_ == nullptr) {
+  mModel = cactus_init(model_path.c_str(), nullptr, false);
+  if (mModel == nullptr) {
     return std::unexpected(NeedleError::ModelLoadFailed);
   }
   return {};
 }
 
 void NeedleClient::unload() {
-  if (model_ != nullptr) {
-    cactus_destroy(model_);
-    model_ = nullptr;
+  if (mModel != nullptr) {
+    cactus_destroy(mModel);
+    mModel = nullptr;
   }
 }
 
 void NeedleClient::reset() {
-  if (model_ != nullptr) {
-    cactus_reset(model_);
+  if (mModel != nullptr) {
+    cactus_reset(mModel);
   }
 }
 
 std::string NeedleClient::render_messages(std::string_view request) const {
   JsonBuilder builder;
   builder.begin_array();
-  if (not system_prompt_.empty()) {
+  if (not mSystemPrompt.empty()) {
     builder.begin_object()
         .field("role", std::string_view{"system"})
-        .field("content", std::string_view{system_prompt_})
+        .field("content", std::string_view{mSystemPrompt})
         .end_object();
   }
   builder.begin_object()
@@ -170,10 +170,10 @@ std::expected<NeedleReply, NeedleError> NeedleClient::ask(
   const std::string tools(tools_json);
 
   const int written = cactus_complete(
-      model_,
+      mModel,
       messages.c_str(),
-      buffer_.data(),
-      buffer_.size(),
+      mBuffer.data(),
+      mBuffer.size(),
       rendered_options.c_str(),
       tools.empty() ? nullptr : tools.c_str(),
       nullptr,
@@ -184,10 +184,10 @@ std::expected<NeedleReply, NeedleError> NeedleClient::ask(
   if (written < 0) {
     return std::unexpected(NeedleError::CompletionFailed);
   }
-  if (static_cast<std::size_t>(written) >= buffer_.size()) {
+  if (static_cast<std::size_t>(written) >= mBuffer.size()) {
     return std::unexpected(NeedleError::ResponseTruncated);
   }
-  return parse_reply(std::string_view(buffer_.data()));
+  return parse_reply(std::string_view(mBuffer.data()));
 }
 
 }  // namespace cactus
