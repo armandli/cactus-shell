@@ -7,6 +7,7 @@
 
 #include <command.h>
 #include <needle.h>
+#include <tools.h>
 
 namespace cactus {
 
@@ -62,11 +63,17 @@ protected:
   bool change_directory(const std::string& path, std::ostream& out);
   bool ensure_model(std::ostream& out);
 
+  // Both are lazy so that exit, quit, and the typed cd builtin keep working
+  // with no config file and no weights on disk.
+  bool ensure_catalog(std::ostream& out);
+
   std::string prompt() const { return "cactus$ "; }
 
   ShellConfig mConfig;
   NeedleClient mClient;
+  ToolCatalog mCatalog;
   bool mModelReady = false;
+  bool mCatalogReady = false;
 };
 
 }  // namespace cactus

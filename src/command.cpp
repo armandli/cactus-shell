@@ -53,9 +53,11 @@ std::string_view describe(ExecError error) {
   }
 }
 
-std::expected<Command, ExecError> command_from_tool_call(const ToolCall& call)
+std::expected<Command, ExecError> command_from_tool_call(
+    const ToolCall& call,
+    const ToolCatalog& catalog)
 {
-  const ToolSpec* spec = find_tool(call.name);
+  const ToolSpec* spec = catalog.find(call.name);
   if (spec == nullptr)
     return std::unexpected(ExecError::UnknownTool);
 

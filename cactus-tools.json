@@ -1,0 +1,289 @@
+[
+  {
+    "name": "ls",
+    "program": "ls",
+    "description": "List the files and directories at a path",
+    "params": [
+      { "name": "long", "kind": "flag", "flag": "-l",
+        "description": "Show permissions, owner, size and date for each entry" },
+      { "name": "all", "kind": "flag", "flag": "-a",
+        "description": "Include entries whose names begin with a dot" },
+      { "name": "recursive", "kind": "flag", "flag": "-R",
+        "description": "Descend into subdirectories" },
+      { "name": "path", "kind": "positional",
+        "description": "Directory or file to list; defaults to the current directory when omitted" }
+    ]
+  },
+  {
+    "name": "pwd",
+    "program": "pwd",
+    "description": "Print the directory the shell is currently in"
+  },
+  {
+    "name": "cd",
+    "program": "cd",
+    "description": "Change the directory the shell is working in",
+    "in_process": true,
+    "params": [
+      { "name": "path", "kind": "positional",
+        "description": "Directory to move to; defaults to the home directory when omitted" }
+    ]
+  },
+  {
+    "name": "cat",
+    "program": "cat",
+    "description": "Print the entire contents of one or more files",
+    "params": [
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Files to print, in order" }
+    ]
+  },
+  {
+    "name": "head",
+    "program": "head",
+    "description": "Print the first lines of a file",
+    "params": [
+      { "name": "lines", "kind": "number", "flag": "-n",
+        "description": "How many lines to show from the top; the program's default is 10" },
+      { "name": "path", "kind": "positional", "required": true,
+        "description": "File to read" }
+    ]
+  },
+  {
+    "name": "tail",
+    "program": "tail",
+    "description": "Print the last lines of a file",
+    "params": [
+      { "name": "lines", "kind": "number", "flag": "-n",
+        "description": "How many lines to show from the end; the program's default is 10" },
+      { "name": "path", "kind": "positional", "required": true,
+        "description": "File to read" }
+    ]
+  },
+  {
+    "name": "grep",
+    "program": "grep",
+    "description": "Search files for lines matching a pattern",
+    "params": [
+      { "name": "ignore_case", "kind": "flag", "flag": "-i",
+        "description": "Match without regard to upper or lower case" },
+      { "name": "recursive", "kind": "flag", "flag": "-r",
+        "description": "Search every file under the given directories" },
+      { "name": "line_numbers", "kind": "flag", "flag": "-n",
+        "description": "Prefix each match with its line number" },
+      { "name": "pattern", "kind": "positional", "required": true,
+        "description": "Text or regular expression to look for" },
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Files or directories to search" }
+    ]
+  },
+  {
+    "name": "find",
+    "program": "find",
+    "description": "Search a directory tree for files by name",
+    "params": [
+      { "name": "path", "kind": "positional", "required": true,
+        "description": "Directory to search under" },
+      { "name": "name", "kind": "option", "flag": "-name",
+        "description": "Filename pattern to match, such as *.cpp" }
+    ]
+  },
+  {
+    "name": "wc",
+    "program": "wc",
+    "description": "Count the lines, words or bytes in files",
+    "params": [
+      { "name": "lines", "kind": "flag", "flag": "-l",
+        "description": "Count lines" },
+      { "name": "words", "kind": "flag", "flag": "-w",
+        "description": "Count words" },
+      { "name": "bytes", "kind": "flag", "flag": "-c",
+        "description": "Count bytes" },
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Files to measure" }
+    ]
+  },
+  {
+    "name": "which",
+    "program": "which",
+    "description": "Show the full path of a program on PATH",
+    "params": [
+      { "name": "program", "kind": "positional", "required": true,
+        "description": "Name of the program to locate" }
+    ]
+  },
+  {
+    "name": "file",
+    "program": "file",
+    "description": "Identify what kind of data a file holds",
+    "params": [
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Files whose type should be identified" }
+    ]
+  },
+  {
+    "name": "du",
+    "program": "du",
+    "description": "Report how much disk space files and directories use",
+    "params": [
+      { "name": "human", "kind": "flag", "flag": "-h",
+        "description": "Report sizes as KB, MB and GB rather than blocks" },
+      { "name": "summarize", "kind": "flag", "flag": "-s",
+        "description": "Report one total instead of every subdirectory" },
+      { "name": "path", "kind": "positional",
+        "description": "File or directory to measure; defaults to the current directory when omitted" }
+    ]
+  },
+  {
+    "name": "df",
+    "program": "df",
+    "description": "Report free and used space on mounted filesystems",
+    "params": [
+      { "name": "human", "kind": "flag", "flag": "-h",
+        "description": "Report sizes as KB, MB and GB rather than blocks" },
+      { "name": "path", "kind": "positional",
+        "description": "Limit the report to the filesystem holding this path" }
+    ]
+  },
+  {
+    "name": "ps",
+    "program": "ps",
+    "description": "List processes running on this machine",
+    "params": [
+      { "name": "all", "kind": "flag", "flag": "-e",
+        "description": "Include processes belonging to every user" },
+      { "name": "full", "kind": "flag", "flag": "-f",
+        "description": "Show the full command line of each process" }
+    ]
+  },
+  {
+    "name": "date",
+    "program": "date",
+    "description": "Print the current date and time"
+  },
+  {
+    "name": "whoami",
+    "program": "whoami",
+    "description": "Print the name of the current user"
+  },
+  {
+    "name": "echo",
+    "program": "echo",
+    "description": "Print text back to the screen",
+    "params": [
+      { "name": "words", "kind": "positional_list", "required": true,
+        "description": "Words to print, separated by spaces" }
+    ]
+  },
+  {
+    "name": "sort",
+    "program": "sort",
+    "description": "Print the lines of files in sorted order",
+    "params": [
+      { "name": "reverse", "kind": "flag", "flag": "-r",
+        "description": "Sort from largest to smallest" },
+      { "name": "numeric", "kind": "flag", "flag": "-n",
+        "description": "Compare as numbers rather than as text" },
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Files whose lines should be sorted" }
+    ]
+  },
+  {
+    "name": "mkdir",
+    "program": "mkdir",
+    "description": "Create one or more directories",
+    "risky": true,
+    "params": [
+      { "name": "parents", "kind": "flag", "flag": "-p",
+        "description": "Create any missing parent directories too, and do not fail if the directory already exists" },
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Directories to create" }
+    ]
+  },
+  {
+    "name": "rmdir",
+    "program": "rmdir",
+    "description": "Remove directories that are already empty",
+    "risky": true,
+    "params": [
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Empty directories to remove" }
+    ]
+  },
+  {
+    "name": "rm",
+    "program": "rm",
+    "description": "Delete files or directories permanently",
+    "risky": true,
+    "params": [
+      { "name": "recursive", "kind": "flag", "flag": "-r",
+        "description": "Delete directories and everything inside them" },
+      { "name": "force", "kind": "flag", "flag": "-f",
+        "description": "Do not complain about files that do not exist" },
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Files or directories to delete" }
+    ]
+  },
+  {
+    "name": "mv",
+    "program": "mv",
+    "description": "Move or rename files and directories",
+    "risky": true,
+    "params": [
+      { "name": "sources", "kind": "positional_list", "required": true,
+        "description": "Files or directories to move" },
+      { "name": "destination", "kind": "positional", "required": true,
+        "description": "New name, or the directory to move them into" }
+    ]
+  },
+  {
+    "name": "cp",
+    "program": "cp",
+    "description": "Copy files and directories",
+    "risky": true,
+    "params": [
+      { "name": "recursive", "kind": "flag", "flag": "-r",
+        "description": "Copy directories and everything inside them" },
+      { "name": "sources", "kind": "positional_list", "required": true,
+        "description": "Files or directories to copy" },
+      { "name": "destination", "kind": "positional", "required": true,
+        "description": "New name, or the directory to copy them into" }
+    ]
+  },
+  {
+    "name": "touch",
+    "program": "touch",
+    "description": "Create empty files, or update the timestamp of existing ones",
+    "risky": true,
+    "params": [
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Files to create, or whose timestamp to update" }
+    ]
+  },
+  {
+    "name": "chmod",
+    "program": "chmod",
+    "description": "Change the permissions on files or directories",
+    "risky": true,
+    "params": [
+      { "name": "recursive", "kind": "flag", "flag": "-R",
+        "description": "Apply to everything inside the given directories" },
+      { "name": "mode", "kind": "positional", "required": true,
+        "description": "Permissions to set, such as 644 or u+x" },
+      { "name": "paths", "kind": "positional_list", "required": true,
+        "description": "Files or directories to change" }
+    ]
+  },
+  {
+    "name": "kill",
+    "program": "kill",
+    "description": "Send a signal to a running process",
+    "risky": true,
+    "params": [
+      { "name": "signal", "kind": "option", "flag": "-s",
+        "description": "Signal to send, such as TERM or KILL; defaults to TERM when omitted" },
+      { "name": "pid", "kind": "positional", "required": true,
+        "description": "Numeric process id to signal" }
+    ]
+  }
+]

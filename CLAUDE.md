@@ -37,26 +37,68 @@ with ours. Keep those declarations byte-compatible with upstream.
     the reply into `NeedleReply` (text plus `ToolCall`s).
   - `tokenize.{h,cpp}` — quote-aware splitter, a pure function from a line to argv. Only
     the typed `cd` builtin uses it; it is off the model path.
-  - `tools.{h,cpp}` — the tool catalog. One `constexpr` table of `ToolSpec`s drives both
-    the JSON schema the model sees and the argv built from its reply, so the two cannot
-    drift. Adding a tool is one table entry, not a new code path.
+  - `tools.{h,cpp}` — `ToolCatalog` reads the catalog from a JSON config file and
+    validates it. The parsed `ToolSpec`s drive both the JSON schema the model sees and
+    the argv built from its reply, so the two cannot drift. `parse` is the testable seam
+    (text in, catalog out); `load` and `discover` add the filesystem.
   - `command.{h,cpp}` — `ToolCall` → `Command` by walking a `ToolSpec`, plus
     `fork`/`execvp`/`waitpid`.
   - `shell.{h,cpp}` — the REPL. `run(std::istream&, std::ostream&)` is the seam that makes
     the loop, the builtins, and the confirmation prompt testable without a model.
+- `cactus-tools.json` — the shipped tool catalog. Adding a tool is one entry here, not a
+  code change.
 - `test/` — GoogleTest unit tests, one `*_test.cpp` per module, added to `cactus_tests`.
 
 Logic must live in `cactus_core`, not `main.cpp` — anything in `main.cpp` cannot be tested.
 
-The model cannot name a program at all: it picks an entry from the fixed table in
-`tools.h`, and a name outside it fails as `ExecError::UnknownTool` and runs nothing. This
-is why there is no denylist — there is no `sudo` tool and no way to ask for one. The
-catalog *is* the attack surface, so adding an entry is a security decision.
+## Tool config
 
-Each JSON value the model fills in becomes exactly one argv entry handed to `execvp`, with
-no splitting or quoting step in between, so nothing model-generated ever reaches
-`/bin/sh`. Argument values are still model-chosen, so tools with `risky` set on their
-`ToolSpec` confirm with the user before running.
+`ToolCatalog::discover()` loads the first of these that exists:
+
+1. `./cactus-tools.json`
+2. `~/.config/cactus-shell/tools.json`
+3. the path baked in as `CACTUS_DEFAULT_TOOL_CONFIG` (the repo's `cactus-tools.json`)
+
+Nothing is compiled in as a fallback, so a missing config means no tools at all. The
+catalog loads lazily on the first model request, which is what keeps `exit`, `quit`, and
+the typed `cd` builtin working with no config on disk.
+
+The file is a JSON array of tools:
+
+```json
+{ "name": "rm", "program": "rm", "description": "Delete files permanently",
+  "risky": true,
+  "params": [
+    { "name": "recursive", "kind": "flag", "flag": "-r",
+      "description": "Delete directories and everything inside them" },
+    { "name": "paths", "kind": "positional_list", "required": true,
+      "description": "Files or directories to delete" }
+  ] }
+```
+
+`kind` is `flag`, `option`, `number`, `positional`, or `positional_list`. `risky`,
+`in_process`, and `required` default to `false`; `flag` and `params` default to empty.
+Parameters become argv in declaration order, so list them in the order the program
+expects — `find` declares `path` before `-name`.
+
+Load rejects a config that breaks any invariant the argv builder relies on: missing or
+empty `name`/`program`/`description`, duplicate tool or parameter names, an unknown
+`kind`, a `flag`/`option`/`number` with no flag spelling or a positional kind carrying
+one, or `in_process` on anything but `cd`. Errors name the offending entry
+(`ls.path.kind`, `entry 7.name`), since this is a file a human edits.
+
+**Trust model.** The config file is as trusted as the binary. Anything it names, the
+shell will run — `sh`, `sudo`, whatever — and there is no denylist or permission check
+behind it. `./cactus-tools.json` in particular means `cd`-ing into a directory picks up
+that directory's catalog. Do not load a config you did not write. This is an accepted
+trade: someone who can write the config can usually replace the binary too.
+
+What survives that trade: the model still cannot name a program. It picks an entry from
+the loaded catalog, and a name outside it fails as `ExecError::UnknownTool` and runs
+nothing. Each JSON value the model fills in becomes exactly one argv entry handed to
+`execvp`, with no splitting or quoting step in between, so nothing model-generated ever
+reaches `/bin/sh`. Argument values are still model-chosen, so tools with `risky` set
+confirm with the user before running.
 
 `needle_test.cpp` holds integration tests that need real weights. They skip unless
 `CACTUS_NEEDLE_MODEL` points at a Needle weights directory:

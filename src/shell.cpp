@@ -113,13 +113,15 @@ Shell::Action Shell::handle_request(
     std::istream& in,
     std::ostream& out)
 {
-  if (not ensure_model(out))
+  // Catalog first: it is cheap to check, so a config the user has to go edit
+  // is reported without first spending seconds loading weights.
+  if (not ensure_catalog(out) or not ensure_model(out))
     return Action::Continue;
 
   NeedleOptions options;
   options.force_tools = true;
 
-  auto reply = mClient.ask(line, tool_catalog_json(), options);
+  auto reply = mClient.ask(line, mCatalog.schema_json(), options);
   if (not reply.has_value()) {
     out << describe(reply.error()) << "\n";
     return Action::Continue;
@@ -142,7 +144,7 @@ bool Shell::run_call(
     std::istream& in,
     std::ostream& out)
 {
-  auto command = command_from_tool_call(call);
+  auto command = command_from_tool_call(call, mCatalog);
   if (not command.has_value()) {
     out << describe(command.error()) << ": " << call.name << "\n";
     return false;
@@ -200,6 +202,21 @@ bool Shell::confirm(
     return false;
   std::string_view trimmed = trim(answer);
   return trimmed == "y" or trimmed == "Y" or trimmed == "yes";
+}
+
+bool Shell::ensure_catalog(std::ostream& out) {
+  if (mCatalogReady)
+    return true;
+
+  auto loaded = ToolCatalog::discover();
+  if (not loaded.has_value()) {
+    out << describe(loaded.error()) << "\n";
+    return false;
+  }
+
+  mCatalog = std::move(*loaded);
+  mCatalogReady = true;
+  return true;
 }
 
 bool Shell::ensure_model(std::ostream& out) {

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <needle.h>
+#include <tools.h>
 
 namespace cactus {
 
@@ -32,7 +33,9 @@ std::string_view describe(ExecError error);
 // A name that is not in the catalog fails as UnknownTool, so the model can only
 // ever run one of the programs the catalog names. Each JSON value becomes
 // exactly one argv entry: nothing is split, quoted, or handed to /bin/sh.
-std::expected<Command, ExecError> command_from_tool_call(const ToolCall& call);
+std::expected<Command, ExecError> command_from_tool_call(
+    const ToolCall& call,
+    const ToolCatalog& catalog);
 
 // Renders the command back into a single line for echoing to the user.
 std::string render(const Command& command);

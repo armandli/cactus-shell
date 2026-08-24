@@ -32,6 +32,12 @@ add_library(cactus_core STATIC
 
 target_include_directories(cactus_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# Last resort in ToolCatalog::discover(). PUBLIC because the config test loads
+# the shipped catalog through the same path, and duplicating the expression
+# would let the two drift.
+target_compile_definitions(cactus_core PUBLIC
+  CACTUS_DEFAULT_TOOL_CONFIG="${PROJECT_SOURCE_DIR}/cactus-tools.json")
+
 target_link_libraries(cactus_core
   PUBLIC simdjson::simdjson ${CACTUS_ENGINE_LIBRARY}
   PRIVATE cactus_warnings

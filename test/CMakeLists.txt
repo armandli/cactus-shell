@@ -17,6 +17,7 @@ add_executable(cactus_tests
   needle_test.cpp
   shell_test.cpp
   tokenize_test.cpp
+  tools_config_test.cpp
   tools_test.cpp
 )
 
