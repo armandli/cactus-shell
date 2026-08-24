@@ -15,8 +15,8 @@ struct ShellConfig {
   // Needle answers tool-calling prompts far more reliably with no system
   // message at all than with one: a system message pushes it off the
   // distribution it was tuned on and it starts emitting garbled, duplicated
-  // tool calls. The run_command tool's own name and description carry
-  // enough context on their own.
+  // tool calls. The catalog's own names and descriptions carry enough
+  // context on their own.
   std::string system_prompt;
   bool confirm_risky = true;
 
@@ -53,7 +53,13 @@ protected:
       std::istream& in,
       std::ostream& out);
 
+  // Runs one call from the model's reply. Returns false when the rest of the
+  // reply should be abandoned, so a request that expands into several calls
+  // stops at the first one that fails.
+  bool run_call(const ToolCall& call, std::istream& in, std::ostream& out);
+
   bool confirm(const Command& command, std::istream& in, std::ostream& out);
+  bool change_directory(const std::string& path, std::ostream& out);
   bool ensure_model(std::ostream& out);
 
   std::string prompt() const { return "cactus$ "; }

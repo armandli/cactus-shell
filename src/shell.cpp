@@ -10,30 +10,11 @@
 #include <command.h>
 #include <needle.h>
 #include <tokenize.h>
+#include <tools.h>
 
 namespace cactus {
 
 namespace {
-
-// The one tool the model may call. Keeping it to a single command string means
-// every reply lands in the same place: tokenize, then execvp.
-constexpr std::string_view kRunCommandTools = R"([{
-  "type": "function",
-  "function": {
-    "name": "run_command",
-    "description": "Run a command line on the user's machine",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "command": {
-          "type": "string",
-          "description": "The complete command line, e.g. 'ls -la /tmp'"
-        }
-      },
-      "required": ["command"]
-    }
-  }
-}])";
 
 std::string_view trim(std::string_view text) {
   std::size_t begin = text.find_first_not_of(" \t\r\n");
@@ -106,29 +87,20 @@ Shell::Action Shell::handle_builtin(
 
   if (line == "cd" or line.starts_with("cd ")) {
     std::string_view target = trim(line.substr(2));
-    std::string directory;
     if (target.empty()) {
-      const char* home = std::getenv("HOME");
-      if (home == nullptr) {
-        out << "cd: HOME is not set\n";
-        return Action::Continue;
-      }
-      directory = home;
-    } else {
-      auto words = tokenize(target);
-      if (not words.has_value()) {
-        out << "cd: " << describe(words.error()) << "\n";
-        return Action::Continue;
-      }
-      if (words->size() != 1) {
-        out << "cd: expected exactly one directory\n";
-        return Action::Continue;
-      }
-      directory = words->front();
+      change_directory({}, out);
+      return Action::Continue;
     }
-    // cd has to happen in this process; a child could not change our directory.
-    if (::chdir(directory.c_str()) != 0)
-      out << "cd: cannot change to " << directory << "\n";
+    auto words = tokenize(target);
+    if (not words.has_value()) {
+      out << "cd: " << describe(words.error()) << "\n";
+      return Action::Continue;
+    }
+    if (words->size() != 1) {
+      out << "cd: expected exactly one directory\n";
+      return Action::Continue;
+    }
+    change_directory(words->front(), out);
     return Action::Continue;
   }
 
@@ -147,7 +119,7 @@ Shell::Action Shell::handle_request(
   NeedleOptions options;
   options.force_tools = true;
 
-  auto reply = client_.ask(line, kRunCommandTools, options);
+  auto reply = client_.ask(line, tool_catalog_json(), options);
   if (not reply.has_value()) {
     out << describe(reply.error()) << "\n";
     return Action::Continue;
@@ -158,27 +130,63 @@ Shell::Action Shell::handle_request(
     return Action::Continue;
   }
 
-  auto command = command_from_tool_call(reply->calls.front());
+  for (const ToolCall& call : reply->calls)
+    if (not run_call(call, in, out))
+      break;
+
+  return Action::Continue;
+}
+
+bool Shell::run_call(
+    const ToolCall& call,
+    std::istream& in,
+    std::ostream& out)
+{
+  auto command = command_from_tool_call(call);
   if (not command.has_value()) {
-    out << describe(command.error()) << "\n";
-    return Action::Continue;
+    out << describe(command.error()) << ": " << call.name << "\n";
+    return false;
   }
 
   out << "> " << render(*command) << "\n";
 
-  if (config_.confirm_risky and is_risky(*command) and
+  if (command->risky and config_.confirm_risky and
       not confirm(*command, in, out))
-    return Action::Continue;
+    return false;
+
+  if (command->in_process)
+    return change_directory(command->args.empty() ? std::string{}
+                                                  : command->args.front(),
+                            out);
 
   auto status = execute(*command);
   if (not status.has_value()) {
     out << describe(status.error()) << ": " << command->program << "\n";
-    return Action::Continue;
+    return false;
   }
-  if (*status != 0)
+  if (*status != 0) {
     out << "[exit " << *status << "]\n";
+    return false;
+  }
+  return true;
+}
 
-  return Action::Continue;
+bool Shell::change_directory(const std::string& path, std::ostream& out) {
+  // cd has to happen in this process; a child could not move the shell.
+  std::string target = path;
+  if (target.empty()) {
+    const char* home = std::getenv("HOME");
+    if (home == nullptr) {
+      out << "cd: HOME is not set\n";
+      return false;
+    }
+    target = home;
+  }
+  if (::chdir(target.c_str()) != 0) {
+    out << "cd: cannot change to " << target << "\n";
+    return false;
+  }
+  return true;
 }
 
 bool Shell::confirm(

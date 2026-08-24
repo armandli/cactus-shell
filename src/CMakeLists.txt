@@ -27,6 +27,7 @@ add_library(cactus_core STATIC
   needle.cpp
   shell.cpp
   tokenize.cpp
+  tools.cpp
 )
 
 target_include_directories(cactus_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

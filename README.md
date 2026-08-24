@@ -5,14 +5,22 @@ Natural language is translated to tool calls by the
 [Needle](https://github.com/cactus-compute/needle) model, running locally through the
 [cactus](https://github.com/cactus-compute/cactus) inference engine.
 
-Status: early, but the loop is closed. You type English, the model answers with a
-`run_command` tool call, and the shell runs it.
+Status: early, but the loop is closed. You type English, the model picks a tool out of a
+fixed catalog and fills in its named arguments, and the shell runs it.
 
-The command string never reaches `/bin/sh`. It is model-generated, so routing it through a
-shell would turn every mistranslation into a metacharacter hazard; instead the line is
-tokenized here and handed straight to `execvp`. That costs pipes, redirects, and globbing.
-Commands whose program is destructive (`rm`, `dd`, `mkfs`, `chmod`, `sudo <any of those>`,
-and friends) stop for a `y/N` confirmation first.
+The model never names a program. It chooses from the ~25 entries in `src/tools.h` — `ls`,
+`grep`, `mv`, `rm`, and so on — each with a described, typed argument schema, so `-a` is a
+documented boolean called `all` rather than a flag spelling the model has to recall.
+Anything the catalog does not cover fails closed and runs nothing.
+
+Nothing reaches `/bin/sh`. Each JSON value the model fills in becomes exactly one `execvp`
+argv entry, with no splitting or quoting step in between, so a mistranslation cannot become
+a metacharacter hazard. That costs pipes, redirects, and globbing. Tools marked destructive
+(`rm`, `rmdir`, `mv`, `cp`, `mkdir`, `touch`, `chmod`, `kill`) stop for a `y/N`
+confirmation first. Argument *values* are still model-chosen, so `rm` with a path of `/`
+remains expressible — which is what the confirmation is for.
+
+A reply carrying several tool calls runs them in order and stops at the first failure.
 
 ## Prerequisites
 
@@ -79,7 +87,8 @@ cactus$ exit
 | `src/needle.h` | `NeedleClient` — feeds prompts to the model, returns parsed JSON replies. |
 | `src/needle_ffi.h` | The subset of cactus's C FFI that this project links against. |
 | `src/tokenize.h` | Quote-aware splitter that turns a command line into argv. |
-| `src/command.h` | Tool call → `Command`, the risky-program check, and `fork`/`execvp`. |
+| `src/tools.h` | The tool catalog: one table driving both the model's schema and argv. |
+| `src/command.h` | Tool call → `Command` via the catalog, plus `fork`/`execvp`. |
 | `src/shell.h` | The REPL, with `std::istream`/`std::ostream` injected for tests. |
 | `test/` | GoogleTest unit tests. |
 

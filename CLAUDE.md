@@ -35,18 +35,28 @@ with ours. Keep those declarations byte-compatible with upstream.
     `JsonDoc::parse` reads it. Both report failure through `std::expected<T, JsonError>`.
   - `needle.{h,cpp}` — `NeedleClient` loads a model, renders chat/tool JSON, and parses
     the reply into `NeedleReply` (text plus `ToolCall`s).
-  - `tokenize.{h,cpp}` — quote-aware splitter, a pure function from a line to argv.
-  - `command.{h,cpp}` — `ToolCall` → `Command`, `is_risky`, and `fork`/`execvp`/`waitpid`.
+  - `tokenize.{h,cpp}` — quote-aware splitter, a pure function from a line to argv. Only
+    the typed `cd` builtin uses it; it is off the model path.
+  - `tools.{h,cpp}` — the tool catalog. One `constexpr` table of `ToolSpec`s drives both
+    the JSON schema the model sees and the argv built from its reply, so the two cannot
+    drift. Adding a tool is one table entry, not a new code path.
+  - `command.{h,cpp}` — `ToolCall` → `Command` by walking a `ToolSpec`, plus
+    `fork`/`execvp`/`waitpid`.
   - `shell.{h,cpp}` — the REPL. `run(std::istream&, std::ostream&)` is the seam that makes
     the loop, the builtins, and the confirmation prompt testable without a model.
 - `test/` — GoogleTest unit tests, one `*_test.cpp` per module, added to `cactus_tests`.
 
 Logic must live in `cactus_core`, not `main.cpp` — anything in `main.cpp` cannot be tested.
 
-Model-generated command lines must never reach `/bin/sh`. They are split by `tokenize()`
-and handed to `execvp` as an explicit argv, so a mistranslation cannot become a
-metacharacter injection. Programs on the `is_risky` denylist need confirmation first, and
-that check looks through `sudo` at its arguments.
+The model cannot name a program at all: it picks an entry from the fixed table in
+`tools.h`, and a name outside it fails as `ExecError::UnknownTool` and runs nothing. This
+is why there is no denylist — there is no `sudo` tool and no way to ask for one. The
+catalog *is* the attack surface, so adding an entry is a security decision.
+
+Each JSON value the model fills in becomes exactly one argv entry handed to `execvp`, with
+no splitting or quoting step in between, so nothing model-generated ever reaches
+`/bin/sh`. Argument values are still model-chosen, so tools with `risky` set on their
+`ToolSpec` confirm with the user before running.
 
 `needle_test.cpp` holds integration tests that need real weights. They skip unless
 `CACTUS_NEEDLE_MODEL` points at a Needle weights directory:

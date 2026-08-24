@@ -2,38 +2,22 @@
 
 #include <cassert>
 #include <cerrno>
+#include <cstdint>
 
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <algorithm>
-#include <array>
+#include <string>
 
 #include <json_util.h>
-#include <tokenize.h>
+#include <tools.h>
 
 namespace cactus {
 
+namespace sj = simdjson;
+
 namespace {
-
-constexpr std::string_view kRunCommand = "run_command";
-
-constexpr std::array<std::string_view, 15> kRiskyPrograms = {
-    "rm", "rmdir", "dd", "mkfs", "shutdown", "reboot", "halt", "chmod",
-    "chown", "mv", "kill", "killall", "truncate", "shred", "fdisk",
-};
-
-std::string_view basename(std::string_view path) {
-  std::size_t slash = path.rfind('/');
-  if (slash == std::string_view::npos)
-    return path;
-  return path.substr(slash + 1);
-}
-
-bool listed(std::string_view program) {
-  return std::ranges::find(kRiskyPrograms, program) != kRiskyPrograms.end();
-}
 
 bool needs_quoting(std::string_view word) {
   if (word.empty())
@@ -50,6 +34,9 @@ std::string_view describe(ExecError error) {
 
     break; case ExecError::BadToolCall:
       return "the model's tool call could not be read as a command";
+
+    break; case ExecError::MissingArgument:
+      return "the model's tool call left out a required argument";
 
     break; case ExecError::UnknownTool:
       return "the model called a tool this shell does not provide";
@@ -68,41 +55,83 @@ std::string_view describe(ExecError error) {
 
 std::expected<Command, ExecError> command_from_tool_call(const ToolCall& call)
 {
-  if (call.name != kRunCommand)
+  const ToolSpec* spec = find_tool(call.name);
+  if (spec == nullptr)
     return std::unexpected(ExecError::UnknownTool);
 
   auto doc = JsonDoc::parse(call.arguments);
   if (not doc.has_value())
     return std::unexpected(ExecError::BadToolCall);
+  sj::dom::element root = doc->root();
 
-  auto line = json_string(doc->root(), "command");
-  if (not line.has_value())
+  if (not root.is_object())
     return std::unexpected(ExecError::BadToolCall);
-
-  auto words = tokenize(*line);
-  if (not words.has_value())
-    return std::unexpected(ExecError::BadToolCall);
-  if (words->empty())
-    return std::unexpected(ExecError::EmptyCommand);
 
   Command command;
-  command.program = words->front();
-  command.args.assign(words->begin() + 1, words->end());
-  return command;
-}
+  command.program = spec->program;
+  command.risky = spec->risky;
+  command.in_process = spec->in_process;
 
-bool is_risky(const Command& command) {
-  std::string_view program = basename(command.program);
-  // sudo hides the real program behind its own options, and those options can
-  // take values, so anything that looks like a risky program anywhere in the
-  // argument list counts.
-  if (program == "sudo") {
-    for (const std::string& arg : command.args)
-      if (listed(basename(arg)))
-        return true;
-    return true;
+  for (const ToolParam& param : spec->params) {
+    auto slot = root.at_key(param.name);
+    if (slot.error()) {
+      if (param.required)
+        return std::unexpected(ExecError::MissingArgument);
+      continue;
+    }
+    sj::dom::element value = slot.value();
+
+    switch (param.kind) {
+      case ParamKind::Flag: {
+        bool set = false;
+        if (value.get(set))
+          return std::unexpected(ExecError::BadToolCall);
+        if (set)
+          command.args.emplace_back(param.flag);
+      }
+
+      break; case ParamKind::Option: {
+        std::string_view text;
+        if (value.get(text))
+          return std::unexpected(ExecError::BadToolCall);
+        command.args.emplace_back(param.flag);
+        command.args.emplace_back(text);
+      }
+
+      break; case ParamKind::Number: {
+        std::int64_t number = 0;
+        if (value.get(number))
+          return std::unexpected(ExecError::BadToolCall);
+        command.args.emplace_back(param.flag);
+        command.args.push_back(std::to_string(number));
+      }
+
+      break; case ParamKind::Positional: {
+        std::string_view text;
+        if (value.get(text))
+          return std::unexpected(ExecError::BadToolCall);
+        command.args.emplace_back(text);
+      }
+
+      break; case ParamKind::PositionalList: {
+        sj::dom::array items;
+        if (value.get(items))
+          return std::unexpected(ExecError::BadToolCall);
+        for (sj::dom::element item : items) {
+          std::string_view text;
+          if (item.get(text))
+            return std::unexpected(ExecError::BadToolCall);
+          command.args.emplace_back(text);
+        }
+      }
+
+      break; default:
+        assert(false); // should never get here
+        return std::unexpected(ExecError::BadToolCall);
+    }
   }
-  return listed(program);
+
+  return command;
 }
 
 std::string render(const Command& command) {

@@ -13,11 +13,14 @@ namespace cactus {
 struct Command {
   std::string program;
   std::vector<std::string> args;  // does not repeat the program
+  bool risky = false;             // confirm with the user before running
+  bool in_process = false;        // cd: a child process cannot move the shell
 };
 
 enum class ExecError : int {
   EmptyCommand = 0,
   BadToolCall,
+  MissingArgument,
   UnknownTool,
   ForkFailed,
   StartFailed,
@@ -25,13 +28,11 @@ enum class ExecError : int {
 
 std::string_view describe(ExecError error);
 
-// Reads {"command": "..."} out of ToolCall::arguments and tokenizes it. The
-// command line never reaches /bin/sh: it is model-generated, so routing it
-// through a shell would turn every mistranslation into a metacharacter hazard.
+// Looks the call up in the tool catalog and fills in argv from its parameters.
+// A name that is not in the catalog fails as UnknownTool, so the model can only
+// ever run one of the programs the catalog names. Each JSON value becomes
+// exactly one argv entry: nothing is split, quoted, or handed to /bin/sh.
 std::expected<Command, ExecError> command_from_tool_call(const ToolCall& call);
-
-// True when the program is destructive enough to warrant a confirmation.
-bool is_risky(const Command& command);
 
 // Renders the command back into a single line for echoing to the user.
 std::string render(const Command& command);

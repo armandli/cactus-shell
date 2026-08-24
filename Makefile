@@ -27,4 +27,4 @@ clean:
 rebuild: clean build
 
 run: build
-	./$(BUILD_DIR)/src/cactus $(WEIGHTS)
+	./$(BUILD_DIR)/cactus $(WEIGHTS)
