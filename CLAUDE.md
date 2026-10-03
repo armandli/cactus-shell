@@ -121,13 +121,6 @@ nothing. Each JSON value the model fills in becomes exactly one argv entry hande
 reaches `/bin/sh`. Argument values are still model-chosen, so tools with `risky` set
 confirm with the user before running.
 
-`needle_test.cpp` holds integration tests that need the model. They skip unless
-`CACTUS_NEEDLE_MODEL` points at `needle3.cact` (or the directory holding it):
-
-```bash
-CACTUS_NEEDLE_MODEL=/path/to/needle3/needle3.cact ctest --test-dir build --output-on-failure
-```
-
 ## Style
 
 Governed by the `format-cpp` and `refactor-cpp` skills in `.claude/skills/`. Run

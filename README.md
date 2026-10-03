@@ -97,12 +97,6 @@ cmake --build build -j4
 ctest --test-dir build --output-on-failure
 ```
 
-The live Needle tests need the model and skip without it:
-
-```bash
-CACTUS_NEEDLE_MODEL=/path/to/needle3/needle3.cact ctest --test-dir build --output-on-failure
-```
-
 Pass `-DCACTUS_BUILD_TESTS=OFF` at configure time to skip building tests entirely, which
 also skips the GoogleTest download.
 
