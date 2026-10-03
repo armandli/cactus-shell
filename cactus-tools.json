@@ -1,8 +1,9 @@
 [
   {
-    "name": "ls",
+    "name": "list_files",
     "program": "ls",
     "description": "List the files and directories at a path",
+    "triggers": ["\\b(list|show)\\b.*\\b(files|contents of (the )?(folder|directory)|everything|listing)\\b", "\\bwhat('s| is) in (this|the)\\b"],
     "params": [
       { "name": "long", "kind": "flag", "flag": "-l",
         "description": "Show permissions, owner, size and date for each entry" },
@@ -15,14 +16,16 @@
     ]
   },
   {
-    "name": "pwd",
+    "name": "print_working_directory",
     "program": "pwd",
-    "description": "Print the directory the shell is currently in"
+    "description": "Print the directory the shell is currently in",
+    "triggers": ["\\b(what|which) (directory|folder)\\b", "\\bwhere am i\\b", "\\bcurrent (directory|folder)\\b"]
   },
   {
-    "name": "cd",
+    "name": "change_directory",
     "program": "cd",
     "description": "Change the directory the shell is working in",
+    "triggers": ["\\b(go|change|switch|move) (in)?to\\b.*\\b(folder|directory|dir)\\b", "\\bchange (the )?directory\\b", "\\bcd\\b", "\\bgo (in)?to\\b"],
     "in_process": true,
     "params": [
       { "name": "path", "kind": "positional",
@@ -30,18 +33,20 @@
     ]
   },
   {
-    "name": "cat",
+    "name": "print_file",
     "program": "cat",
     "description": "Print the entire contents of one or more files",
+    "triggers": ["\\b(print|show|display|read|output)\\b.*\\bcontents?\\b", "\\bshow me \\S+\\.\\w+\\b", "\\bcat\\b"],
     "params": [
       { "name": "paths", "kind": "positional_list", "required": true,
         "description": "Files to print, in order" }
     ]
   },
   {
-    "name": "head",
+    "name": "print_first_lines",
     "program": "head",
     "description": "Print the first lines of a file",
+    "triggers": ["\\b(first|top|beginning)\\b.*\\blines?\\b"],
     "params": [
       { "name": "lines", "kind": "number", "flag": "-n",
         "description": "How many lines to show from the top; the program's default is 10" },
@@ -50,9 +55,10 @@
     ]
   },
   {
-    "name": "tail",
+    "name": "print_last_lines",
     "program": "tail",
     "description": "Print the last lines of a file",
+    "triggers": ["\\b(last|bottom|end)\\b.*\\blines?\\b"],
     "params": [
       { "name": "lines", "kind": "number", "flag": "-n",
         "description": "How many lines to show from the end; the program's default is 10" },
@@ -61,9 +67,10 @@
     ]
   },
   {
-    "name": "grep",
+    "name": "search_text_in_files",
     "program": "grep",
     "description": "Search files for lines matching a pattern",
+    "triggers": ["\\b(search|grep|look) for\\b", "\\blines? (containing|matching|with)\\b"],
     "params": [
       { "name": "ignore_case", "kind": "flag", "flag": "-i",
         "description": "Match without regard to upper or lower case" },
@@ -78,9 +85,10 @@
     ]
   },
   {
-    "name": "find",
+    "name": "find_files_by_name",
     "program": "find",
     "description": "Search a directory tree for files by name",
+    "triggers": ["\\bfind (all )?(the )?files\\b", "\\bfiles named\\b", "\\bfind\\b.*\\bfiles?\\b"],
     "params": [
       { "name": "path", "kind": "positional", "required": true,
         "description": "Directory to search under" },
@@ -89,9 +97,10 @@
     ]
   },
   {
-    "name": "wc",
+    "name": "count_lines_and_words",
     "program": "wc",
     "description": "Count the lines, words or bytes in files",
+    "triggers": ["\\bcount\\b.*\\b(lines|words|bytes|characters)\\b", "\\bhow many (lines|words)\\b"],
     "params": [
       { "name": "lines", "kind": "flag", "flag": "-l",
         "description": "Count lines" },
@@ -104,27 +113,30 @@
     ]
   },
   {
-    "name": "which",
+    "name": "locate_program",
     "program": "which",
     "description": "Show the full path of a program on PATH",
+    "triggers": ["\\bwhere is\\b.*\\binstalled\\b", "\\bpath (of|to) (the )?\\S+ (program|binary|command)\\b", "\\bwhich\\b"],
     "params": [
       { "name": "program", "kind": "positional", "required": true,
         "description": "Name of the program to locate" }
     ]
   },
   {
-    "name": "file",
+    "name": "identify_file_type",
     "program": "file",
     "description": "Identify what kind of data a file holds",
+    "triggers": ["\\bwhat (kind|type) of (file|data)\\b", "\\bfile type\\b"],
     "params": [
       { "name": "paths", "kind": "positional_list", "required": true,
         "description": "Files whose type should be identified" }
     ]
   },
   {
-    "name": "du",
+    "name": "show_disk_usage",
     "program": "du",
     "description": "Report how much disk space files and directories use",
+    "triggers": ["\\bhow (big|large)\\b", "\\b(size|disk usage) of\\b", "\\bspace (does|is) .* (use|using|taking)\\b"],
     "params": [
       { "name": "human", "kind": "flag", "flag": "-h",
         "description": "Report sizes as KB, MB and GB rather than blocks" },
@@ -135,9 +147,10 @@
     ]
   },
   {
-    "name": "df",
+    "name": "show_free_disk_space",
     "program": "df",
     "description": "Report free and used space on mounted filesystems",
+    "triggers": ["\\b(free|available|remaining) (disk )?space\\b", "\\bdisk space\\b.*\\bfree\\b", "\\bhow full\\b"],
     "params": [
       { "name": "human", "kind": "flag", "flag": "-h",
         "description": "Report sizes as KB, MB and GB rather than blocks" },
@@ -146,9 +159,10 @@
     ]
   },
   {
-    "name": "ps",
+    "name": "list_processes",
     "program": "ps",
     "description": "List processes running on this machine",
+    "triggers": ["\\bprocesses\\b", "\\bwhat('s| is) running\\b"],
     "params": [
       { "name": "all", "kind": "flag", "flag": "-e",
         "description": "Include processes belonging to every user" },
@@ -157,28 +171,32 @@
     ]
   },
   {
-    "name": "date",
+    "name": "show_date_and_time",
     "program": "date",
-    "description": "Print the current date and time"
+    "description": "Print the current date and time",
+    "triggers": ["\\bwhat time\\b", "\\b(today'?s )?date\\b", "\\bwhat day\\b"]
   },
   {
-    "name": "whoami",
+    "name": "show_current_user",
     "program": "whoami",
-    "description": "Print the name of the current user"
+    "description": "Print the name of the current user",
+    "triggers": ["\\bwho am i\\b", "\\b(current|my) user(name)?\\b", "\\blogged in as\\b"]
   },
   {
-    "name": "echo",
+    "name": "print_text",
     "program": "echo",
     "description": "Print text back to the screen",
+    "triggers": ["\\b(say|echo|repeat)\\b"],
     "params": [
       { "name": "words", "kind": "positional_list", "required": true,
         "description": "Words to print, separated by spaces" }
     ]
   },
   {
-    "name": "sort",
+    "name": "sort_lines",
     "program": "sort",
     "description": "Print the lines of files in sorted order",
+    "triggers": ["\\bsort\\b", "\\bin (alphabetical|numeric|sorted) order\\b"],
     "params": [
       { "name": "reverse", "kind": "flag", "flag": "-r",
         "description": "Sort from largest to smallest" },
@@ -189,9 +207,10 @@
     ]
   },
   {
-    "name": "mkdir",
+    "name": "make_directory",
     "program": "mkdir",
     "description": "Create one or more directories",
+    "triggers": ["\\b(make|create|new) (a |the )?(new )?(directory|folder|dir)\\b"],
     "risky": true,
     "params": [
       { "name": "parents", "kind": "flag", "flag": "-p",
@@ -201,9 +220,10 @@
     ]
   },
   {
-    "name": "rmdir",
+    "name": "remove_empty_directory",
     "program": "rmdir",
     "description": "Remove directories that are already empty",
+    "triggers": ["\\b(remove|delete) (the )?empty (directory|folder)\\b"],
     "risky": true,
     "params": [
       { "name": "paths", "kind": "positional_list", "required": true,
@@ -211,9 +231,10 @@
     ]
   },
   {
-    "name": "rm",
+    "name": "delete_files",
     "program": "rm",
     "description": "Delete files or directories permanently",
+    "triggers": ["\\b(delete|remove|erase|rm)\\b(?!.*\\bempty (directory|folder)\\b)"],
     "risky": true,
     "params": [
       { "name": "recursive", "kind": "flag", "flag": "-r",
@@ -225,9 +246,10 @@
     ]
   },
   {
-    "name": "mv",
+    "name": "move_or_rename",
     "program": "mv",
     "description": "Move or rename files and directories",
+    "triggers": ["\\b(rename|move|mv)\\b"],
     "risky": true,
     "params": [
       { "name": "sources", "kind": "positional_list", "required": true,
@@ -237,9 +259,10 @@
     ]
   },
   {
-    "name": "cp",
+    "name": "copy_files",
     "program": "cp",
     "description": "Copy files and directories",
+    "triggers": ["\\b(copy|duplicate|cp|back ?up)\\b"],
     "risky": true,
     "params": [
       { "name": "recursive", "kind": "flag", "flag": "-r",
@@ -251,9 +274,10 @@
     ]
   },
   {
-    "name": "touch",
+    "name": "create_empty_file",
     "program": "touch",
     "description": "Create empty files, or update the timestamp of existing ones",
+    "triggers": ["\\b(create|make|new) (an? )?(empty )?file\\b", "\\btouch\\b"],
     "risky": true,
     "params": [
       { "name": "paths", "kind": "positional_list", "required": true,
@@ -261,9 +285,10 @@
     ]
   },
   {
-    "name": "chmod",
+    "name": "change_permissions",
     "program": "chmod",
     "description": "Change the permissions on files or directories",
+    "triggers": ["\\b(executable|permissions?|chmod|read-?only|writable)\\b"],
     "risky": true,
     "params": [
       { "name": "recursive", "kind": "flag", "flag": "-R",
@@ -275,9 +300,10 @@
     ]
   },
   {
-    "name": "kill",
+    "name": "kill_process",
     "program": "kill",
     "description": "Send a signal to a running process",
+    "triggers": ["\\b(kill|terminate|stop) (the )?(process|pid)\\b", "\\bkill\\b"],
     "risky": true,
     "params": [
       { "name": "signal", "kind": "option", "flag": "-s",

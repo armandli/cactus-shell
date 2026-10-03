@@ -10,9 +10,10 @@
 
 namespace {
 
-// The shipped config is the catalog these cases are written against: ls, head,
-// find, mv, cat, rm, cd and pwd all come from it, with the flag spellings and
-// parameter order the assertions below expect.
+// The shipped config is the catalog these cases are written against: the
+// tools for ls, head, find, mv, cat, rm, cd and pwd all come from it, with the
+// flag spellings and parameter order the assertions below expect. Calls name
+// the tool as the model sees it, which is not the program it runs.
 const cactus::ToolCatalog& catalog() {
   static const cactus::ToolCatalog loaded =
       cactus::ToolCatalog::load(CACTUS_DEFAULT_TOOL_CONFIG)
@@ -36,7 +37,7 @@ TEST(CommandCatalog, the_shipped_config_loads) {
 // setting `all` without `long` must not shift the path out of position.
 TEST(CommandFromToolCall, emits_flags_then_the_optional_positional) {
   auto command =
-      from_call("ls", R"({"long": true, "all": true, "path": "/tmp"})");
+      from_call("list_files", R"({"long": true, "all": true, "path": "/tmp"})");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   EXPECT_EQ(command->program, "ls");
   ASSERT_EQ(command->args.size(), 3u);
@@ -46,21 +47,21 @@ TEST(CommandFromToolCall, emits_flags_then_the_optional_positional) {
 }
 
 TEST(CommandFromToolCall, drops_flags_the_model_set_to_false) {
-  auto command = from_call("ls", R"({"long": false, "all": true})");
+  auto command = from_call("list_files", R"({"long": false, "all": true})");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   ASSERT_EQ(command->args.size(), 1u);
   EXPECT_EQ(command->args[0], "-a");
 }
 
 TEST(CommandFromToolCall, skips_an_absent_optional_parameter) {
-  auto command = from_call("ls", "{}");
+  auto command = from_call("list_files", "{}");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   EXPECT_EQ(command->program, "ls");
   EXPECT_TRUE(command->args.empty());
 }
 
 TEST(CommandFromToolCall, spells_a_number_out_after_its_flag) {
-  auto command = from_call("head", R"({"lines": 20, "path": "README.md"})");
+  auto command = from_call("print_first_lines", R"({"lines": 20, "path": "README.md"})");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   EXPECT_EQ(command->program, "head");
   ASSERT_EQ(command->args.size(), 3u);
@@ -72,7 +73,7 @@ TEST(CommandFromToolCall, spells_a_number_out_after_its_flag) {
 // find wants its path before -name, which is why parameters are emitted in
 // declaration order rather than flags-first.
 TEST(CommandFromToolCall, emits_an_option_after_the_positional_it_follows) {
-  auto command = from_call("find", R"({"path": "src", "name": "*.cpp"})");
+  auto command = from_call("find_files_by_name", R"({"path": "src", "name": "*.cpp"})");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   ASSERT_EQ(command->args.size(), 3u);
   EXPECT_EQ(command->args[0], "src");
@@ -82,7 +83,7 @@ TEST(CommandFromToolCall, emits_an_option_after_the_positional_it_follows) {
 
 TEST(CommandFromToolCall, expands_a_list_before_the_positional_after_it) {
   auto command =
-      from_call("mv", R"({"sources": ["a", "b"], "destination": "dest"})");
+      from_call("move_or_rename", R"({"sources": ["a", "b"], "destination": "dest"})");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   ASSERT_EQ(command->args.size(), 3u);
   EXPECT_EQ(command->args[0], "a");
@@ -93,35 +94,35 @@ TEST(CommandFromToolCall, expands_a_list_before_the_positional_after_it) {
 // Each JSON value becomes exactly one argv entry, so a path holding a space
 // survives without any quoting or splitting step.
 TEST(CommandFromToolCall, keeps_one_argv_entry_per_list_item) {
-  auto command = from_call("cat", R"({"paths": ["notes.txt", "my file.txt"]})");
+  auto command = from_call("print_file", R"({"paths": ["notes.txt", "my file.txt"]})");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   ASSERT_EQ(command->args.size(), 2u);
   EXPECT_EQ(command->args[1], "my file.txt");
 }
 
 TEST(CommandFromToolCall, accepts_a_tool_that_takes_no_parameters) {
-  auto command = from_call("pwd", "{}");
+  auto command = from_call("print_working_directory", "{}");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   EXPECT_EQ(command->program, "pwd");
   EXPECT_TRUE(command->args.empty());
 }
 
 TEST(CommandFromToolCall, carries_the_risky_mark_off_the_catalog) {
-  auto risky = from_call("rm", R"({"recursive": true, "paths": ["tmp"]})");
+  auto risky = from_call("delete_files", R"({"recursive": true, "paths": ["tmp"]})");
   ASSERT_TRUE(risky.has_value()) << cactus::describe(risky.error());
   EXPECT_TRUE(risky->risky);
 
-  auto harmless = from_call("ls", "{}");
+  auto harmless = from_call("list_files", "{}");
   ASSERT_TRUE(harmless.has_value()) << cactus::describe(harmless.error());
   EXPECT_FALSE(harmless->risky);
 }
 
 TEST(CommandFromToolCall, marks_cd_as_in_process) {
-  auto command = from_call("cd", R"({"path": "/tmp"})");
+  auto command = from_call("change_directory", R"({"path": "/tmp"})");
   ASSERT_TRUE(command.has_value()) << cactus::describe(command.error());
   EXPECT_TRUE(command->in_process);
 
-  auto other = from_call("pwd", "{}");
+  auto other = from_call("print_working_directory", "{}");
   ASSERT_TRUE(other.has_value()) << cactus::describe(other.error());
   EXPECT_FALSE(other->in_process);
 }
@@ -141,39 +142,39 @@ TEST(CommandFromToolCall, rejects_sudo) {
 }
 
 TEST(CommandFromToolCall, rejects_a_missing_required_parameter) {
-  auto command = from_call("mv", R"({"sources": ["a"]})");
+  auto command = from_call("move_or_rename", R"({"sources": ["a"]})");
   ASSERT_FALSE(command.has_value());
   EXPECT_EQ(command.error(), cactus::ExecError::MissingArgument);
 }
 
 TEST(CommandFromToolCall, rejects_a_parameter_of_the_wrong_type) {
-  auto flag = from_call("ls", R"({"all": "yes"})");
+  auto flag = from_call("list_files", R"({"all": "yes"})");
   ASSERT_FALSE(flag.has_value());
   EXPECT_EQ(flag.error(), cactus::ExecError::BadToolCall);
 
-  auto number = from_call("head", R"({"lines": "20", "path": "f"})");
+  auto number = from_call("print_first_lines", R"({"lines": "20", "path": "f"})");
   ASSERT_FALSE(number.has_value());
   EXPECT_EQ(number.error(), cactus::ExecError::BadToolCall);
 
-  auto list = from_call("cat", R"({"paths": "notes.txt"})");
+  auto list = from_call("print_file", R"({"paths": "notes.txt"})");
   ASSERT_FALSE(list.has_value());
   EXPECT_EQ(list.error(), cactus::ExecError::BadToolCall);
 }
 
 TEST(CommandFromToolCall, rejects_a_list_holding_a_non_string) {
-  auto command = from_call("cat", R"({"paths": ["notes.txt", 7]})");
+  auto command = from_call("print_file", R"({"paths": ["notes.txt", 7]})");
   ASSERT_FALSE(command.has_value());
   EXPECT_EQ(command.error(), cactus::ExecError::BadToolCall);
 }
 
 TEST(CommandFromToolCall, rejects_malformed_arguments_json) {
-  auto command = from_call("ls", "{not json");
+  auto command = from_call("list_files", "{not json");
   ASSERT_FALSE(command.has_value());
   EXPECT_EQ(command.error(), cactus::ExecError::BadToolCall);
 }
 
 TEST(CommandFromToolCall, rejects_arguments_that_are_not_an_object) {
-  auto command = from_call("ls", R"(["-a"])");
+  auto command = from_call("list_files", R"(["-a"])");
   ASSERT_FALSE(command.has_value());
   EXPECT_EQ(command.error(), cactus::ExecError::BadToolCall);
 }

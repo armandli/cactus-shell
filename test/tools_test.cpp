@@ -132,6 +132,7 @@ TEST(ToolCatalogParse, defaults_the_optional_fields) {
   EXPECT_TRUE(pwd->params.empty());
   EXPECT_FALSE(pwd->risky);
   EXPECT_FALSE(pwd->in_process);
+  EXPECT_TRUE(pwd->triggers.empty());
 
   const cactus::ToolSpec* ls = catalog.find("ls");
   ASSERT_NE(ls, nullptr);
@@ -143,6 +144,39 @@ TEST(ToolCatalogParse, carries_the_risky_mark) {
   cactus::ToolCatalog catalog = parsed(kConfig);
   EXPECT_TRUE(catalog.find("rm")->risky);
   EXPECT_FALSE(catalog.find("ls")->risky);
+}
+
+TEST(ToolCatalogParse, reads_the_triggers_in_order) {
+  cactus::ToolCatalog catalog = parsed(R"([
+    {"name": "delete_files", "program": "rm", "description": "Delete",
+     "triggers": ["\\b(delete|remove)\\b", "\\berase\\b"]}
+  ])");
+  const cactus::ToolSpec* spec = catalog.find("delete_files");
+  ASSERT_NE(spec, nullptr);
+  ASSERT_EQ(spec->triggers.size(), 2u);
+  EXPECT_EQ(spec->triggers[0], R"(\b(delete|remove)\b)");
+  EXPECT_EQ(spec->triggers[1], R"(\berase\b)");
+}
+
+TEST(ToolCatalogParse, renders_triggers_beside_the_description) {
+  cactus::ToolCatalog catalog = parsed(R"([
+    {"name": "delete_files", "program": "rm", "description": "Delete",
+     "triggers": ["\\bdelete\\b"]},
+    {"name": "pwd", "program": "pwd", "description": "Where"}
+  ])");
+  auto doc = cactus::JsonDoc::parse(catalog.schema_json());
+  ASSERT_TRUE(doc.has_value());
+
+  auto triggers = doc->root().at_pointer("/0/function/triggers");
+  ASSERT_FALSE(triggers.error());
+  sj::dom::array items;
+  ASSERT_FALSE(triggers.get(items));
+  ASSERT_EQ(items.size(), 1u);
+  EXPECT_EQ(std::string_view(items.at(0).get_string().value()),
+            R"(\bdelete\b)");
+
+  // A tool with no triggers leaves the key out rather than sending [].
+  EXPECT_TRUE(doc->root().at_pointer("/1/function/triggers").error());
 }
 
 TEST(ToolCatalogParse, accepts_an_empty_catalog) {
@@ -244,6 +278,30 @@ TEST(ToolConfigErrorTest, rejects_a_risky_mark_that_is_not_a_boolean) {
       R"( "risky": "yes"}])");
   EXPECT_EQ(error.code, cactus::ToolConfigCode::WrongType);
   EXPECT_EQ(error.where, "rm.risky");
+}
+
+TEST(ToolConfigErrorTest, rejects_triggers_that_are_not_an_array) {
+  cactus::ToolConfigError error = rejected(
+      R"([{"name": "ls", "program": "ls", "description": "List",)"
+      R"( "triggers": "\\blist\\b"}])");
+  EXPECT_EQ(error.code, cactus::ToolConfigCode::WrongType);
+  EXPECT_EQ(error.where, "ls.triggers");
+}
+
+TEST(ToolConfigErrorTest, rejects_a_trigger_that_is_not_a_string) {
+  cactus::ToolConfigError error = rejected(
+      R"([{"name": "ls", "program": "ls", "description": "List",)"
+      R"( "triggers": ["\\blist\\b", 7]}])");
+  EXPECT_EQ(error.code, cactus::ToolConfigCode::WrongType);
+  EXPECT_EQ(error.where, "ls.triggers");
+}
+
+TEST(ToolConfigErrorTest, rejects_an_empty_trigger) {
+  cactus::ToolConfigError error = rejected(
+      R"([{"name": "ls", "program": "ls", "description": "List",)"
+      R"( "triggers": [""]}])");
+  EXPECT_EQ(error.code, cactus::ToolConfigCode::MissingField);
+  EXPECT_EQ(error.where, "ls.triggers");
 }
 
 TEST(ToolConfigErrorTest, rejects_a_repeated_tool_name) {

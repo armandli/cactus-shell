@@ -1,46 +1,37 @@
 #ifndef NEEDLE_FFI_H
 #define NEEDLE_FFI_H
 
-#include <stddef.h>
-#include <stdint.h>
-
-// Subset of cactus-engine's C FFI that this project uses, redeclared here
-// rather than including <cactus_engine.h>. That header pulls in cactus_graph.h,
-// which includes <arm_neon.h> unconditionally and declares its own C++
-// `namespace cactus` that would collide with ours. The declarations below must
-// stay byte-compatible with cactus-engine/cactus_engine.h upstream.
+// Subset of the Needle 3 engine's C API that this project uses, redeclared
+// here rather than including the needle.h shipped beside libneedle.a. That
+// header uses the same NEEDLE_H include guard as our src/needle.h, and
+// `#include <needle.h>` already resolves to ours, so the two cannot both be
+// included. The declarations below must stay byte-compatible with the
+// upstream header in https://huggingface.co/Cactus-Compute/needle3.
+//
+// The engine holds one process-global, non-thread-safe text model and
+// conversation. Negative returns indicate failure; needle_last_error() then
+// says why.
 
 extern "C" {
 
-typedef void* cactus_model_t;
+int needle_load(const unsigned char* cact, unsigned long long n);
 
-typedef void (*cactus_token_callback)(
-    const char* token,
-    uint32_t token_id,
-    void* user_data);
+const char* needle_last_error(void);
 
-cactus_model_t cactus_init(
-    const char* model_path,
-    const char* corpus_dir,
-    bool cache_index);
-
-void cactus_destroy(cactus_model_t model);
-void cactus_reset(cactus_model_t model);
-void cactus_stop(cactus_model_t model);
-
-int cactus_complete(
-    cactus_model_t model,
-    const char* messages_json,
-    char* response_buffer,
-    size_t buffer_size,
-    const char* options_json,
+int needle_init(
+    const char* system_prompt,
     const char* tools_json,
-    cactus_token_callback callback,
-    void* user_data,
-    const uint8_t* pcm_buffer,
-    size_t pcm_buffer_size);
+    const char* tool_index_path);
 
-const char* cactus_get_last_error(void);
+int needle_complete(
+    const char* input,
+    const float* pcm,
+    int samples,
+    int max_new_tokens,
+    char* out,
+    int out_capacity);
+
+void needle_reset(void);
 
 }  // extern "C"
 

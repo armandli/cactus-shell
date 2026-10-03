@@ -118,17 +118,19 @@ Shell::Action Shell::handle_request(
   if (not ensure_catalog(out) or not ensure_model(out))
     return Action::Continue;
 
-  NeedleOptions options;
-  options.force_tools = true;
-
-  auto reply = mClient.ask(line, mCatalog.schema_json(), options);
+  auto reply = mClient.ask(line, mCatalog.schema_json(), NeedleOptions{});
   if (not reply.has_value()) {
     out << describe(reply.error()) << "\n";
     return Action::Continue;
   }
 
+  // Needle answers a request no tool covers, or one it is not confident
+  // about, with no calls rather than a guess. Its reasoning says which.
   if (reply->calls.empty()) {
-    out << reply->text << "\n";
+    out << "no matching command";
+    if (not reply->reasoning.empty())
+      out << " (" << reply->reasoning << ")";
+    out << "\n";
     return Action::Continue;
   }
 
@@ -224,7 +226,7 @@ bool Shell::ensure_model(std::ostream& out) {
     return true;
 
   if (mConfig.model_path.empty()) {
-    out << "no model: pass a Needle weights directory as the first argument "
+    out << "no model: pass a Needle 3 .cact file as the first argument "
            "or set CACTUS_NEEDLE_MODEL\n";
     return false;
   }

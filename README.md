@@ -2,14 +2,15 @@
 
 A shell written in C++23 that takes plain English and runs the matching commands.
 Natural language is translated to tool calls by the
-[Needle](https://github.com/cactus-compute/needle) model, running locally through the
-[cactus](https://github.com/cactus-compute/cactus) inference engine.
+[Needle 3](https://github.com/cactus-compute/needle) model, running locally through its
+self-contained C++ engine (`libneedle.a`).
 
 Status: early, but the loop is closed. You type English, the model picks a tool out of a
 fixed catalog and fills in its named arguments, and the shell runs it.
 
 The model never names a program. It chooses from the 26 entries in `cactus-tools.json` —
-`ls`, `grep`, `mv`, `rm`, and so on — each with a described, typed argument schema, so
+`list_files`, `search_text_in_files`, `move_or_rename`, `delete_files`, and so on, which run
+`ls`, `grep`, `mv` and `rm` — each with a described, typed argument schema, so
 `-a` is a documented boolean called `all` rather than a flag spelling the model has to
 recall. Anything the catalog does not cover fails closed and runs nothing.
 
@@ -20,7 +21,9 @@ a metacharacter hazard. That costs pipes, redirects, and globbing. Tools marked 
 confirmation first. Argument *values* are still model-chosen, so `rm` with a path of `/`
 remains expressible — which is what the confirmation is for.
 
-A reply carrying several tool calls runs them in order and stops at the first failure.
+A reply carrying several tool calls runs them in order and stops at the first failure. A
+request Needle is not confident about gets no call at all, and the shell prints its
+reasoning instead of guessing.
 
 ## The tool catalog
 
@@ -29,7 +32,8 @@ The catalog is a JSON file, not compiled in. The shell loads the first of
 shipped in this repo. Adding a tool is one entry:
 
 ```json
-{ "name": "rm", "program": "rm", "description": "Delete files permanently",
+{ "name": "delete_files", "program": "rm", "description": "Delete files permanently",
+  "triggers": ["\\b(delete|remove|erase)\\b"],
   "risky": true,
   "params": [
     { "name": "recursive", "kind": "flag", "flag": "-r",
@@ -38,6 +42,14 @@ shipped in this repo. Adding a tool is one entry:
       "description": "Files or directories to delete" }
   ] }
 ```
+
+`name` is what the model sees and `program` is what runs. Needle 3 picks tools by what
+their names say, so name a tool for the action (`delete_files`), not the binary (`rm`).
+
+`triggers` are regexes over the request. With more than five tools Needle 3 only sees the
+five its retrieval ranks highest, and a tool outside those is unreachable; a matching
+trigger narrows the choice to the tools that declared it, which is what keeps the rest of a
+large catalog reachable. Every shipped tool declares some.
 
 `kind` is `flag`, `option`, `number`, `positional`, or `positional_list`; parameters
 become argv in the order they are declared. A config that would build a broken argv —
@@ -53,24 +65,29 @@ case and the dangerous one. Do not load a config you did not write.
 
 - CMake 3.25 or newer
 - A C++23 compiler (GCC 13+ or Clang 16+)
-- **An arm64 host.** The cactus engine is a required link-time dependency and its kernels
-  are built with `-march=armv8.2-a`, so it does not build on x86_64.
+- The Needle 3 engine and model, below
 - Network access on the first configure, to fetch simdjson and GoogleTest
 
-### Building the cactus engine
+### Getting Needle 3
+
+The engine ships prebuilt, one folder per platform, beside the model in
+[Cactus-Compute/needle3](https://huggingface.co/Cactus-Compute/needle3) (Apache-2.0). Fetch
+the model and your platform's folder (`macos-arm64`, `linux-arm64`, `linux-x86_64`, ...):
 
 ```bash
-git clone https://github.com/cactus-compute/cactus
-cd cactus && source ./setup
+mkdir -p needle3/macos-arm64 && cd needle3
+base=https://huggingface.co/Cactus-Compute/needle3/resolve/main
+curl -fLO $base/needle3.cact
+for f in libneedle.a needle.h needle; do curl -fL -o macos-arm64/$f $base/macos-arm64/$f; done
 ```
 
-Then point this project at it with `-DCACTUS_ROOT`. Model weights come from
-[Cactus-Compute on Hugging Face](https://huggingface.co/Cactus-Compute).
+Point this project at that directory with `-DNEEDLE_ROOT`. CMake picks the folder matching
+the host; override it with `-DNEEDLE_PLATFORM=linux-arm64` and the like.
 
 ## Build
 
 ```bash
-cmake -S . -B build -DCACTUS_ROOT=/path/to/cactus
+cmake -S . -B build -DNEEDLE_ROOT=/path/to/needle3
 cmake --build build -j4
 ```
 
@@ -80,10 +97,10 @@ cmake --build build -j4
 ctest --test-dir build --output-on-failure
 ```
 
-The Needle tests need real weights and skip without them:
+The live Needle tests need the model and skip without it:
 
 ```bash
-CACTUS_NEEDLE_MODEL=/path/to/weights ctest --test-dir build --output-on-failure
+CACTUS_NEEDLE_MODEL=/path/to/needle3/needle3.cact ctest --test-dir build --output-on-failure
 ```
 
 Pass `-DCACTUS_BUILD_TESTS=OFF` at configure time to skip building tests entirely, which
@@ -92,7 +109,7 @@ also skips the GoogleTest download.
 ## Run
 
 ```bash
-./build/cactus /path/to/weights         # or set CACTUS_NEEDLE_MODEL
+./build/cactus /path/to/needle3/needle3.cact   # or set CACTUS_NEEDLE_MODEL
 ```
 
 ```
@@ -112,7 +129,7 @@ cactus$ exit
 | `src/` | All source code. `cactus_core` static library plus the `cactus` executable. |
 | `src/json_util.h` | `JsonBuilder` to write JSON, `JsonDoc` to parse it, both over simdjson. |
 | `src/needle.h` | `NeedleClient` — feeds prompts to the model, returns parsed JSON replies. |
-| `src/needle_ffi.h` | The subset of cactus's C FFI that this project links against. |
+| `src/needle_ffi.h` | The subset of the Needle 3 engine's C API that this project links against. |
 | `src/tokenize.h` | Quote-aware splitter that turns a command line into argv. |
 | `src/tools.h` | `ToolCatalog` — loads and validates the catalog config, renders the model's schema. |
 | `cactus-tools.json` | The shipped tool catalog. |

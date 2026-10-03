@@ -13,11 +13,9 @@ namespace cactus {
 
 struct ShellConfig {
   std::string model_path;
-  // Needle answers tool-calling prompts far more reliably with no system
-  // message at all than with one: a system message pushes it off the
-  // distribution it was tuned on and it starts emitting garbled, duplicated
-  // tool calls. The catalog's own names and descriptions carry enough
-  // context on their own.
+  // Session facts for Needle 3, such as "device: laptop". It reads these as
+  // facts to resolve the request against and ignores instructions, so this
+  // is not the place to tell it what to do. Empty by default.
   std::string system_prompt;
   bool confirm_risky = true;
 

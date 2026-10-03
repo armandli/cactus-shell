@@ -1,8 +1,6 @@
 #ifndef NEEDLE_H
 #define NEEDLE_H
 
-#include <cstdint>
-
 #include <expected>
 #include <string>
 #include <string_view>
@@ -15,6 +13,7 @@ namespace cactus {
 enum class NeedleError : int {
   ModelLoadFailed = 0,
   NotLoaded,
+  ToolsRejected,
   CompletionFailed,
   ResponseTruncated,
   MalformedResponse,
@@ -24,12 +23,7 @@ enum class NeedleError : int {
 std::string_view describe(NeedleError error);
 
 struct NeedleOptions {
-  std::int64_t max_tokens = 256;
-  double temperature = 0.0;
-  double top_p = 0.0;
-  std::int64_t top_k = 0;
-  bool force_tools = false;
-  bool auto_handoff = false;
+  int max_tokens = 256;
 };
 
 struct ToolCall {
@@ -37,30 +31,41 @@ struct ToolCall {
   std::string arguments;  // raw JSON object as returned by the model
 };
 
+// Needle 3 never answers in free text. A turn is a list of calls, possibly
+// empty, plus the model's one-line account of how it read the request.
 struct NeedleReply {
-  std::string text;
   std::vector<ToolCall> calls;
+  std::string reasoning;
   double confidence = 0.0;
-  bool cloud_handoff = false;
 };
 
-// Wraps one loaded cactus model. Feeds natural-language input to the model as
-// chat JSON and returns the parsed JSON reply.
+// Wraps the Needle 3 engine. The engine holds one process-global model, so
+// every client in a process shares it: loading through one client replaces
+// the model the others see, and unload() only detaches this client, since
+// the engine has no call that frees a model.
+//
+// Each ask() is an independent turn. The engine would otherwise accumulate
+// turns into one conversation, and a shell request should not be read in the
+// light of the last one.
 struct NeedleClient {
   NeedleClient() = default;
+
+  // system_prompt is session facts such as "device: laptop; os: macOS", not
+  // instructions. Needle 3 reads it as facts and ignores directives.
   explicit NeedleClient(std::string system_prompt);
-  ~NeedleClient();
 
   NeedleClient(NeedleClient&& other) noexcept;
   NeedleClient& operator=(NeedleClient&& other) noexcept;
   NeedleClient(const NeedleClient&) = delete;
   NeedleClient& operator=(const NeedleClient&) = delete;
 
+  // model_path is a .cact file, or a directory holding needle3.cact.
   std::expected<void, NeedleError> load(const std::string& model_path);
-  void unload();
-  bool loaded() const { return mModel != nullptr; }
+  void unload() { mLoaded = false; }
+  bool loaded() const { return mLoaded; }
 
-  // tools_json is an OpenAI-style tool array, or empty for a plain completion.
+  // tools_json is a JSON array of tool schemas, either Needle's compact form
+  // or OpenAI-style wrappers, or empty for no tools.
   std::expected<NeedleReply, NeedleError> ask(
       std::string_view request,
       std::string_view tools_json,
@@ -72,15 +77,15 @@ struct NeedleClient {
 
   void reset();
 
-  std::string render_messages(std::string_view request) const;
-  static std::string render_options(const NeedleOptions& options);
   static std::expected<NeedleReply, NeedleError> parse_reply(
       std::string_view json);
 
 protected:
+  std::expected<void, NeedleError> configure(std::string_view tools_json);
+
   std::string mSystemPrompt;
-  cactus_model_t mModel = nullptr;
-  std::vector<char> mBuffer = std::vector<char>(16384);
+  bool mLoaded = false;
+  std::vector<char> mBuffer = std::vector<char>(65536);
 };
 
 }  // namespace cactus

@@ -1,23 +1,36 @@
-# The cactus inference engine is a required link-time dependency: it provides
-# the C symbols declared in needle_ffi.h. Build it from
-# https://github.com/cactus-compute/cactus and point CACTUS_ROOT at the result.
-# Note that its kernels are compiled with -march=armv8.2-a, so it only builds
-# on arm64 hosts.
-# "cactus_engine_core" is the engine's object code alone, without cactus_graph,
-# cactus_kernels, or the Apple frameworks/ObjC runtime it needs at link time, so
-# it must not be preferred over the self-contained "cactus_engine" artifact.
-find_library(CACTUS_ENGINE_LIBRARY
-  NAMES cactus_engine_shared cactus_engine cactus_engine_core cactus
-  HINTS ${CACTUS_ROOT} ENV CACTUS_ROOT
-  PATH_SUFFIXES lib lib64 build cactus-engine/build
+# The Needle 3 engine is a required link-time dependency: it provides the C
+# symbols declared in needle_ffi.h. It ships prebuilt, one folder per platform,
+# in https://huggingface.co/Cactus-Compute/needle3. Download the folder for
+# this host and point NEEDLE_ROOT at its parent (or at the folder itself).
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  set(needle_os macos)
+else()
+  set(needle_os linux)
+endif()
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
+  set(needle_arch arm64)
+else()
+  set(needle_arch ${CMAKE_SYSTEM_PROCESSOR})
+endif()
+set(NEEDLE_PLATFORM "${needle_os}-${needle_arch}" CACHE STRING
+  "Needle 3 platform folder to link from, such as macos-arm64")
+
+# Static only: the engine has no shared build, and libneedle.a needs nothing
+# beyond the C++ standard library.
+find_library(NEEDLE_LIBRARY
+  NAMES libneedle.a
+  HINTS ${NEEDLE_ROOT} ENV NEEDLE_ROOT
+  PATH_SUFFIXES ${NEEDLE_PLATFORM}
+  NO_DEFAULT_PATH
 )
 
-if(NOT CACTUS_ENGINE_LIBRARY)
+if(NOT NEEDLE_LIBRARY)
   message(FATAL_ERROR
-    "Could not find the cactus inference engine library.\n"
-    "cactus-shell links against it for Needle model inference.\n"
-    "Build it from https://github.com/cactus-compute/cactus on an arm64 host, "
-    "then re-run cmake with -DCACTUS_ROOT=/path/to/cactus"
+    "Could not find libneedle.a for ${NEEDLE_PLATFORM}.\n"
+    "cactus-shell links against the Needle 3 engine for model inference.\n"
+    "Download the ${NEEDLE_PLATFORM} folder from "
+    "https://huggingface.co/Cactus-Compute/needle3, "
+    "then re-run cmake with -DNEEDLE_ROOT=/path/to/needle3"
   )
 endif()
 
@@ -39,7 +52,7 @@ target_compile_definitions(cactus_core PUBLIC
   CACTUS_DEFAULT_TOOL_CONFIG="${PROJECT_SOURCE_DIR}/cactus-tools.json")
 
 target_link_libraries(cactus_core
-  PUBLIC simdjson::simdjson ${CACTUS_ENGINE_LIBRARY}
+  PUBLIC simdjson::simdjson ${NEEDLE_LIBRARY}
   PRIVATE cactus_warnings
 )
 

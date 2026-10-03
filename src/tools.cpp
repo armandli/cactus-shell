@@ -109,6 +109,32 @@ std::expected<bool, ToolConfigError> optional_bool(
   return set;
 }
 
+std::expected<std::vector<std::string>, ToolConfigError> optional_strings(
+    sj::dom::element parent,
+    std::string_view key,
+    std::string_view label)
+{
+  std::vector<std::string> strings;
+  auto slot = parent.at_key(key);
+  if (slot.error())
+    return strings;
+  sj::dom::array items;
+  if (slot.value().get(items))
+    return std::unexpected(
+        ToolConfigError{ToolConfigCode::WrongType, field_of(label, key)});
+  for (sj::dom::element item : items) {
+    std::string_view text;
+    if (item.get(text))
+      return std::unexpected(
+          ToolConfigError{ToolConfigCode::WrongType, field_of(label, key)});
+    if (text.empty())
+      return std::unexpected(
+          ToolConfigError{ToolConfigCode::MissingField, field_of(label, key)});
+    strings.emplace_back(text);
+  }
+  return strings;
+}
+
 std::expected<ParamKind, ToolConfigError> parse_kind(
     std::string_view text,
     std::string_view label)
@@ -201,6 +227,10 @@ std::expected<ToolSpec, ToolConfigError> read_spec(
   if (not description.has_value())
     return std::unexpected(description.error());
 
+  auto triggers = optional_strings(entry, "triggers", label);
+  if (not triggers.has_value())
+    return std::unexpected(triggers.error());
+
   auto risky = optional_bool(entry, "risky", label);
   if (not risky.has_value())
     return std::unexpected(risky.error());
@@ -218,6 +248,7 @@ std::expected<ToolSpec, ToolConfigError> read_spec(
   spec.name = std::move(*name);
   spec.program = std::move(*program);
   spec.description = std::move(*description);
+  spec.triggers = std::move(*triggers);
   spec.risky = *risky;
   spec.in_process = *in_process;
 
@@ -279,8 +310,16 @@ std::string render_catalog(std::span<const ToolSpec> specs) {
         .key("function")
         .begin_object()
         .field("name", spec.name)
-        .field("description", spec.description)
-        .key("parameters")
+        .field("description", spec.description);
+
+    if (not spec.triggers.empty()) {
+      builder.key("triggers").begin_array();
+      for (const std::string& trigger : spec.triggers)
+        builder.value(trigger);
+      builder.end_array();
+    }
+
+    builder.key("parameters")
         .begin_object()
         .field("type", std::string_view{"object"})
         .key("properties")

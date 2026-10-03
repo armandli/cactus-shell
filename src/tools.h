@@ -27,9 +27,13 @@ struct ToolParam {
 };
 
 struct ToolSpec {
-  std::string name;     // what the model calls, e.g. "ls"
+  std::string name;     // what the model calls, e.g. "list_files"
   std::string program;  // what gets exec'd
   std::string description;
+  // Regexes over the request. Needle 3 narrows its choice to the tools whose
+  // triggers match, which is what keeps a tool reachable in a catalog too
+  // large for the model to see whole.
+  std::vector<std::string> triggers;
   std::vector<ToolParam> params;
   bool risky = false;       // needs confirmation before running
   bool in_process = false;  // cd only: a child process cannot move us

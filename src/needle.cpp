@@ -1,7 +1,12 @@
 #include <needle.h>
 
 #include <cassert>
+#include <cstring>
 
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -13,11 +18,33 @@ namespace cactus {
 
 namespace sj = simdjson;
 
+namespace {
+
+// The system prompt and tools the engine was last initialised with. The
+// engine's state is process-global, so this mirror is too: it lets a client
+// skip needle_init (which embeds every tool on a cold call) when nothing
+// changed, and notices when another client changed it underneath.
+std::optional<std::string> gConfiguredPrefix;
+
+std::string prefix_key(std::string_view system_prompt,
+                       std::string_view tools_json)
+{
+  std::string key(system_prompt);
+  key.push_back('\0');
+  key.append(tools_json);
+  return key;
+}
+
+}  // namespace
+
 std::string_view describe(NeedleError error) {
   switch (error) {
     case NeedleError::ModelLoadFailed: return "could not load model";
 
     break; case NeedleError::NotLoaded: return "no model loaded";
+
+    break; case NeedleError::ToolsRejected:
+      return "model rejected the tool schemas";
 
     break; case NeedleError::CompletionFailed: return "completion call failed";
 
@@ -39,24 +66,19 @@ NeedleClient::NeedleClient(std::string system_prompt)
   : mSystemPrompt(std::move(system_prompt)) {
 }
 
-NeedleClient::~NeedleClient() {
-  unload();
-}
-
 NeedleClient::NeedleClient(NeedleClient&& other) noexcept
   : mSystemPrompt(std::move(other.mSystemPrompt)),
-    mModel(other.mModel),
+    mLoaded(other.mLoaded),
     mBuffer(std::move(other.mBuffer)) {
-  other.mModel = nullptr;
+  other.mLoaded = false;
 }
 
 NeedleClient& NeedleClient::operator=(NeedleClient&& other) noexcept {
   if (this != &other) {
-    unload();
     mSystemPrompt = std::move(other.mSystemPrompt);
-    mModel = other.mModel;
+    mLoaded = other.mLoaded;
     mBuffer = std::move(other.mBuffer);
-    other.mModel = nullptr;
+    other.mLoaded = false;
   }
   return *this;
 }
@@ -65,54 +87,51 @@ std::expected<void, NeedleError> NeedleClient::load(
     const std::string& model_path)
 {
   unload();
-  mModel = cactus_init(model_path.c_str(), nullptr, false);
-  if (mModel == nullptr) {
+
+  std::filesystem::path path(model_path);
+  std::error_code ec;
+  if (std::filesystem::is_directory(path, ec))
+    path /= "needle3.cact";
+
+  std::ifstream file(path, std::ios::binary);
+  if (not file)
     return std::unexpected(NeedleError::ModelLoadFailed);
-  }
+  const std::vector<unsigned char> bytes(
+      (std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+  // The engine copies what it needs, so the bytes can go once this returns.
+  if (needle_load(bytes.data(), bytes.size()) < 0)
+    return std::unexpected(NeedleError::ModelLoadFailed);
+
+  gConfiguredPrefix.reset();
+  mLoaded = true;
   return {};
 }
 
-void NeedleClient::unload() {
-  if (mModel != nullptr) {
-    cactus_destroy(mModel);
-    mModel = nullptr;
-  }
-}
-
 void NeedleClient::reset() {
-  if (mModel != nullptr) {
-    cactus_reset(mModel);
-  }
+  if (mLoaded)
+    needle_reset();
 }
 
-std::string NeedleClient::render_messages(std::string_view request) const {
-  JsonBuilder builder;
-  builder.begin_array();
-  if (not mSystemPrompt.empty()) {
-    builder.begin_object()
-        .field("role", std::string_view{"system"})
-        .field("content", std::string_view{mSystemPrompt})
-        .end_object();
-  }
-  builder.begin_object()
-      .field("role", std::string_view{"user"})
-      .field("content", request)
-      .end_object();
-  builder.end_array();
-  return builder.str().value_or(std::string{"[]"});
-}
+std::expected<void, NeedleError> NeedleClient::configure(
+    std::string_view tools_json)
+{
+  std::string key = prefix_key(mSystemPrompt, tools_json);
+  if (gConfiguredPrefix == key)
+    return {};
 
-std::string NeedleClient::render_options(const NeedleOptions& options) {
-  JsonBuilder builder;
-  builder.begin_object()
-      .field("max_tokens", options.max_tokens)
-      .field("temperature", options.temperature)
-      .field("top_p", options.top_p)
-      .field("top_k", options.top_k)
-      .field("force_tools", options.force_tools)
-      .field("auto_handoff", options.auto_handoff)
-      .end_object();
-  return builder.str().value_or(std::string{"{}"});
+  const std::string tools(tools_json);
+  const int status = needle_init(
+      mSystemPrompt.empty() ? nullptr : mSystemPrompt.c_str(),
+      tools.empty() ? nullptr : tools.c_str(),
+      nullptr);
+  if (status < 0) {
+    gConfiguredPrefix.reset();
+    return std::unexpected(NeedleError::ToolsRejected);
+  }
+
+  gConfiguredPrefix = std::move(key);
+  return {};
 }
 
 std::expected<NeedleReply, NeedleError> NeedleClient::parse_reply(
@@ -133,9 +152,8 @@ std::expected<NeedleReply, NeedleError> NeedleClient::parse_reply(
   }
 
   NeedleReply reply;
-  reply.text = std::string(json_string(root, "response").value_or(""));
+  reply.reasoning = std::string(json_string(root, "reasoning").value_or(""));
   reply.confidence = json_double(root, "confidence").value_or(0.0);
-  reply.cloud_handoff = json_bool(root, "cloud_handoff").value_or(false);
 
   auto calls = json_array(root, "function_calls");
   if (calls) {
@@ -165,29 +183,32 @@ std::expected<NeedleReply, NeedleError> NeedleClient::ask(
     return std::unexpected(NeedleError::NotLoaded);
   }
 
-  const std::string messages = render_messages(request);
-  const std::string rendered_options = render_options(options);
-  const std::string tools(tools_json);
+  auto configured = configure(tools_json);
+  if (not configured.has_value()) {
+    return std::unexpected(configured.error());
+  }
+  needle_reset();
 
-  const int written = cactus_complete(
-      mModel,
-      messages.c_str(),
+  const std::string input(request);
+  const int capacity = static_cast<int>(mBuffer.size());
+  const int status = needle_complete(
+      input.c_str(),
+      nullptr,
+      0,
+      options.max_tokens,
       mBuffer.data(),
-      mBuffer.size(),
-      rendered_options.c_str(),
-      tools.empty() ? nullptr : tools.c_str(),
-      nullptr,
-      nullptr,
-      nullptr,
-      0);
+      capacity);
 
-  if (written < 0) {
+  if (status < 0) {
     return std::unexpected(NeedleError::CompletionFailed);
   }
-  if (static_cast<std::size_t>(written) >= mBuffer.size()) {
+  // The engine truncates an oversized reply silently, leaving the buffer
+  // full, so a reply that fills it may have lost its tail.
+  const std::size_t length = ::strnlen(mBuffer.data(), mBuffer.size());
+  if (length + 1 >= mBuffer.size()) {
     return std::unexpected(NeedleError::ResponseTruncated);
   }
-  return parse_reply(std::string_view(mBuffer.data()));
+  return parse_reply(std::string_view(mBuffer.data(), length));
 }
 
 }  // namespace cactus

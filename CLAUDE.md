@@ -1,30 +1,42 @@
 # cactus-shell
 
 A shell written in C++23 that takes natural-language English and runs the corresponding
-commands. Translation is done by the Needle model via the cactus inference engine.
+commands. Translation is done by the Needle 3 model via its own C++ engine, `libneedle.a`.
 
 ## Commands
 
 ```bash
-cmake -S . -B build -DCACTUS_ROOT=/path/to/cactus   # configure
+cmake -S . -B build -DNEEDLE_ROOT=/path/to/needle3  # configure
 cmake --build build -j4                              # build
 ctest --test-dir build --output-on-failure           # test
-./build/cactus /path/to/weights                      # run
+./build/cactus /path/to/needle3/needle3.cact         # run
 ```
 
 ## Dependencies
 
-- **cactus engine** — required at link time, provides the C symbols in `needle_ffi.h`.
-  Build from https://github.com/cactus-compute/cactus and pass `-DCACTUS_ROOT`.
-  **Its kernels are compiled with `-march=armv8.2-a`, so it only builds on arm64.**
-  On x86_64 the configure step fails by design.
+- **Needle 3 engine** — required at link time, provides the C symbols in `needle_ffi.h`.
+  It ships prebuilt as `<platform>/libneedle.a` in https://huggingface.co/Cactus-Compute/needle3,
+  beside the model `needle3.cact`. Pass the directory holding the platform folders as
+  `-DNEEDLE_ROOT`; `NEEDLE_PLATFORM` (default: derived from the host, e.g. `macos-arm64`)
+  picks the folder. The library needs nothing beyond the C++ standard library.
 - **simdjson** and **GoogleTest** — fetched automatically via `FetchContent` on the first
   configure (needs network). Both prefer a system install if one exists.
 
-`needle_ffi.h` redeclares the handful of cactus C functions we call instead of including
-`<cactus_engine.h>`. That upstream header pulls in `cactus_graph.h`, which includes
-`<arm_neon.h>` unconditionally and declares its own C++ `namespace cactus` that collides
-with ours. Keep those declarations byte-compatible with upstream.
+`needle_ffi.h` redeclares the handful of Needle C functions we call instead of including
+the upstream `needle.h`, whose `NEEDLE_H` include guard collides with our `src/needle.h`
+(and `#include <needle.h>` resolves to ours anyway). Keep those declarations
+byte-compatible with upstream.
+
+The engine holds **one process-global model and conversation**, with no unload call.
+`NeedleClient` mirrors that: `unload()` only detaches the client, and `ask()` calls
+`needle_reset()` first so each shell request is an independent turn. `needle_init` (system
+prompt + tools) is only re-run when the tools change, because a cold init embeds every
+tool (~0.7 s for the shipped catalog).
+
+Needle 3 never answers in free text: a reply is `function_calls` (possibly empty),
+`reasoning` and `confidence`. Calls under 0.1 confidence land in `suppressed_calls`, which
+we deliberately ignore. It also refuses free-form arguments: every argument value must be
+a span of the request, so a generic `run_command(command)` tool gets no call at all.
 
 ## Layout
 
@@ -33,8 +45,8 @@ with ours. Keep those declarations byte-compatible with upstream.
   `src/` and must be added to the `cactus_core` sources list in `src/CMakeLists.txt`.
   - `json_util.{h,cpp}` — `JsonBuilder` writes JSON (separators handled automatically),
     `JsonDoc::parse` reads it. Both report failure through `std::expected<T, JsonError>`.
-  - `needle.{h,cpp}` — `NeedleClient` loads a model, renders chat/tool JSON, and parses
-    the reply into `NeedleReply` (text plus `ToolCall`s).
+  - `needle.{h,cpp}` — `NeedleClient` loads a `.cact` model, configures the engine with
+    the tool JSON, and parses the reply into `NeedleReply` (`ToolCall`s plus reasoning).
   - `tokenize.{h,cpp}` — quote-aware splitter, a pure function from a line to argv. Only
     the typed `cd` builtin uses it; it is off the model path.
   - `tools.{h,cpp}` — `ToolCatalog` reads the catalog from a JSON config file and
@@ -66,7 +78,8 @@ the typed `cd` builtin working with no config on disk.
 The file is a JSON array of tools:
 
 ```json
-{ "name": "rm", "program": "rm", "description": "Delete files permanently",
+{ "name": "delete_files", "program": "rm", "description": "Delete files permanently",
+  "triggers": ["\\b(delete|remove|erase)\\b"],
   "risky": true,
   "params": [
     { "name": "recursive", "kind": "flag", "flag": "-r",
@@ -76,8 +89,16 @@ The file is a JSON array of tools:
   ] }
 ```
 
+`name` is what the model sees; `program` is what runs. Name tools for the action
+(`delete_files`), not the binary: Needle 3 picks far worse with bare program names.
+`triggers` are regexes over the request; a match narrows the model's choice to the tools
+that declared it. They matter because above five tools Needle only sees the five its
+retrieval ranks highest, and an unretrieved tool is unreachable. On a held-out set of 32
+shell requests, bare names scored ~2/32, descriptive names 5/32, names plus triggers 23/32.
+
 `kind` is `flag`, `option`, `number`, `positional`, or `positional_list`. `risky`,
-`in_process`, and `required` default to `false`; `flag` and `params` default to empty.
+`in_process`, and `required` default to `false`; `flag`, `triggers` and `params` default
+to empty.
 Parameters become argv in declaration order, so list them in the order the program
 expects — `find` declares `path` before `-name`.
 
@@ -100,11 +121,11 @@ nothing. Each JSON value the model fills in becomes exactly one argv entry hande
 reaches `/bin/sh`. Argument values are still model-chosen, so tools with `risky` set
 confirm with the user before running.
 
-`needle_test.cpp` holds integration tests that need real weights. They skip unless
-`CACTUS_NEEDLE_MODEL` points at a Needle weights directory:
+`needle_test.cpp` holds integration tests that need the model. They skip unless
+`CACTUS_NEEDLE_MODEL` points at `needle3.cact` (or the directory holding it):
 
 ```bash
-CACTUS_NEEDLE_MODEL=/path/to/weights ctest --test-dir build --output-on-failure
+CACTUS_NEEDLE_MODEL=/path/to/needle3/needle3.cact ctest --test-dir build --output-on-failure
 ```
 
 ## Style
