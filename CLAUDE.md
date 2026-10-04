@@ -1,7 +1,8 @@
 # cactus-shell
 
 A shell written in C++23 that takes natural-language English and runs the corresponding
-commands. Translation is done by the Needle 3 model via its own C++ engine, `libneedle.a`.
+commands. Translation is done by the Needle 3 model via its C engine (`libneedle3.so` on
+Linux, `libneedle.a` on macOS).
 
 ## Commands
 
@@ -9,16 +10,18 @@ commands. Translation is done by the Needle 3 model via its own C++ engine, `lib
 cmake -S . -B build -DNEEDLE_ROOT=/path/to/needle3  # configure
 cmake --build build -j4                              # build
 ctest --test-dir build --output-on-failure           # test
-./build/cactus /path/to/needle3/needle3.cact         # run
+./build/cactus                                       # run (uses CACTUS_DEFAULT_NEEDLE_MODEL)
+./build/cactus /path/to/needle3.cact                 # run with explicit model path
 ```
 
 ## Dependencies
 
 - **Needle 3 engine** — required at link time, provides the C symbols in `needle_ffi.h`.
-  It ships prebuilt as `<platform>/libneedle.a` in https://huggingface.co/Cactus-Compute/needle3,
-  beside the model `needle3.cact`. Pass the directory holding the platform folders as
-  `-DNEEDLE_ROOT`; `NEEDLE_PLATFORM` (default: derived from the host, e.g. `macos-arm64`)
-  picks the folder. The library needs nothing beyond the C++ standard library.
+  Ships prebuilt per platform at https://huggingface.co/Cactus-Compute/needle3 beside the
+  model `needle3.cact`. Pass the directory holding the platform folders as `-DNEEDLE_ROOT`;
+  `NEEDLE_PLATFORM` (default: derived from the host) picks the subfolder. On Linux the build
+  prefers `libneedle3.so` (soname `libneedle.so`; C++ stdlib statically linked inside) over
+  `libneedle.a`. The `.so` and `.a` are gitignored — download them from HuggingFace.
 - **simdjson** and **GoogleTest** — fetched automatically via `FetchContent` on the first
   configure (needs network). Both prefer a system install if one exists.
 
@@ -74,6 +77,12 @@ Logic must live in `cactus_core`, not `main.cpp` — anything in `main.cpp` cann
 Nothing is compiled in as a fallback, so a missing config means no tools at all. The
 catalog loads lazily on the first model request, which is what keeps `exit`, `quit`, and
 the typed `cd` builtin working with no config on disk.
+
+The model path follows the same three-tier pattern: (1) the CLI argument, (2) the
+`CACTUS_NEEDLE_MODEL` environment variable, (3) the compile-time default
+`CACTUS_DEFAULT_NEEDLE_MODEL` (baked in as `needle3/` inside the repo). When
+`NEEDLE_ROOT` points at the repo's `needle3/` directory the shipped `needle3.cact` is
+picked up automatically, so `./build/cactus` works without any extra flags.
 
 The file is a JSON array of tools:
 
