@@ -121,7 +121,7 @@ TEST(ShellConfigTest, from_args_falls_back_to_the_environment) {
   char program[] = "cactus";
   char* argv[] = {program, nullptr};
   const char* from_env = std::getenv("CACTUS_NEEDLE_MODEL");
-  std::string expected = from_env == nullptr ? std::string() : from_env;
+  std::string expected = from_env != nullptr ? from_env : CACTUS_DEFAULT_NEEDLE_MODEL;
   EXPECT_EQ(cactus::ShellConfig::from_args(1, argv).model_path, expected);
 }
 

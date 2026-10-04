@@ -33,8 +33,7 @@ ShellConfig ShellConfig::from_args(int argc, char** argv) {
     return config;
   }
   const char* from_env = std::getenv("CACTUS_NEEDLE_MODEL");
-  if (from_env != nullptr)
-    config.model_path = from_env;
+  config.model_path = from_env != nullptr ? from_env : CACTUS_DEFAULT_NEEDLE_MODEL;
   return config;
 }
 
